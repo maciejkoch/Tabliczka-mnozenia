@@ -1,10 +1,22 @@
-# Kosmiczna wyprawa 🚀
+# Matematyczny basket 🏀 i Kosmiczna wyprawa 🚀
 
 Gra edukacyjna dla dzieci: mnożenie i dzielenie w zakresie **10 × 10** oraz **dodawanie i odejmowanie do 20**, lot statkiem, trzy planety i nagrody. Zaprojektowana do wyświetlania na dużym telewizorze i sterowania padem.
 
 **Graj:** https://maciejkoch.github.io/Tabliczka-mnozenia/
 
 Wyprawa przygotowana dla **Emilii, Jakuba i Piotra**. Wybierz pilota w menu; gra przywita dziecko po imieniu i będzie zwracać się do niego podczas lotu, podpowiedzi i ukończenia misji. Wybór jest zapamiętywany, a postępy na jednym komputerze są wspólne.
+
+## Matematyczny basket
+
+Nowy domyślny tryb: widok boiska z boku, zawodnik po lewej i trzy kosze z odpowiedziami na różnych wysokościach i odległościach. Oblicz działanie, ustaw kąt i siłę, a potem rzuć do właściwego kosza. W menu możesz wrócić do kosmicznej wyprawy.
+
+- Góra / dół (lub W / S, gałka i krzyżak): kąt 25–78°.
+- Lewo / prawo (lub A / D, gałka i krzyżak): siła 10–100%.
+- A na padzie, Enter / Spacja albo przycisk „Rzuć piłkę”: rzut.
+- Suwaki oraz przyciski + / − działają myszką i dotykiem.
+- X / H: podpowiedź. Start / P, B / Esc: pauza.
+
+Fizyka Matter.js symuluje grawitację, obrót, tarcie i odbicia od obręczy, tablic oraz podłoża. Kosz liczy się po przejściu piłki od góry przez obręcz. Każdy z dziewięciu koszy w trzech układach ma osiągalny rzut, sprawdzany testami. Kąt i siłę można zmieniać już podczas lotu, a A / Enter lub „Rzuć ponownie” natychmiast zastępuje piłkę nowym rzutem; pomyłka w celowaniu nie wpływa na ocenę umiejętności liczenia. Trafienie do kosza z błędnym wynikiem pokazuje podpowiedź. Pauza zatrzymuje fizykę. Mecz obejmuje 12 działań, a postępy są wspólne z kosmicznym trybem.
 
 ## Jak uruchomić
 

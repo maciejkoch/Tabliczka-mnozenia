@@ -3,6 +3,7 @@ export class Input {
   onCommand: (command: Command) => void = () => {};
   onPad: (pad: Gamepad | null) => void = () => {};
   movement = 0;
+  verticalMovement = 0;
   private keys = new Set<string>();
   private previous: Record<string, boolean> = {};
   private lastPad = '';
@@ -15,11 +16,11 @@ export class Input {
       if (event.ctrlKey || event.metaKey || event.altKey || (event.target instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(event.target.tagName))) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       this.keys.add(key);
-      if (commands[key] && !event.repeat) {
+      if (commands[key]) {
         // Enter on a focused native button already triggers its click.
         if ((key === 'Enter' || key === ' ') && event.target instanceof HTMLButtonElement) return;
         event.preventDefault();
-        this.onCommand(commands[key]);
+        if (!event.repeat) this.onCommand(commands[key]);
       }
     });
     window.addEventListener('keyup', (event) => this.keys.delete(event.key.length === 1 ? event.key.toLowerCase() : event.key));
@@ -52,6 +53,8 @@ export class Input {
     this.previous = state;
     const keyboard = (this.keys.has('ArrowRight') || this.keys.has('d') ? 1 : 0) - (this.keys.has('ArrowLeft') || this.keys.has('a') ? 1 : 0);
     this.movement = keyboard || (down(14) ? -1 : down(15) ? 1 : Math.abs(horizontal) > 0.18 ? horizontal : 0);
+    const keyboardVertical = (this.keys.has('ArrowDown') || this.keys.has('s') ? 1 : 0) - (this.keys.has('ArrowUp') || this.keys.has('w') ? 1 : 0);
+    this.verticalMovement = keyboardVertical || (down(12) ? -1 : down(13) ? 1 : Math.abs(vertical) > 0.18 ? vertical : 0);
     this.frame = requestAnimationFrame(this.tick);
   };
   getPad(): Gamepad | null {

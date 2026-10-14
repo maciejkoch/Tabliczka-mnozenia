@@ -6,6 +6,7 @@ import { Input, type Command } from './input';
 import { Sound } from './audio';
 import { SpaceScene } from './scene';
 import { encounterFor, type Encounter } from './encounters';
+import { BasketballPhysics, courtMarkup, shotVelocity, LAUNCH } from './basketball';
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const art = `${import.meta.env.BASE_URL}art/`;
@@ -34,6 +35,15 @@ let mode: Mode = 'mixed';
 let range: Range = 'all';
 let planetIndex = 0;
 let calm = false;
+let gameStyle: 'basketball' | 'space' = readStored('matematyczny-basket:style') === 'space' ? 'space' : 'basketball';
+const basketball = new BasketballPhysics();
+let throwAngle = 62;
+let throwPower = 55;
+let basketMessage = '';
+let lastMonitorTime = performance.now();
+let lastBounceTime = 0;
+basketball.onBounce = () => { if (performance.now() - lastBounceTime > 90) { sound.play('bounce'); lastBounceTime = performance.now(); } };
+function isBasket(): boolean { return gameStyle === 'basketball'; }
 let skin = readStored('kosmiczna-wyprawa:skin') ?? 'original';
 const pilots = [
   { id: 'emilia', name: 'Emilia', greeting: 'Emilio' },
@@ -95,21 +105,28 @@ function focusedAction(): string | null { return (document.activeElement as HTML
 function focusAction(action: string): void { const button = [...document.querySelectorAll<HTMLButtonElement>('button[data-action]')].find((entry) => entry.dataset.action === action && entry.offsetParent !== null); button?.focus({ preventScroll: true }); }
 function renderHome(restore?: string | null): void {
   view = 'home';
+  document.querySelector('.controller-guide')!.innerHTML = '<kbd>← →</kbd> wybierz <span class="key-a">A</span> / <kbd>Enter</kbd> zatwierdź <kbd>B</kbd> / <kbd>Esc</kbd> wróć';
   scene.setPhase('idle');
+  basketball.active = false;
+  root.classList.toggle('basketball-theme', isBasket());
+  document.querySelector('.brand')!.setAttribute('aria-label', isBasket() ? 'Matematyczny basket — strona główna' : 'Kosmiczna wyprawa — strona główna');
+  document.querySelector('.brand > span:last-child')!.innerHTML = isBasket() ? 'MATEMATYCZNY<span class="brand-small">BASKET</span>' : 'KOSMICZNA<span class="brand-small">WYPRAWA</span>';
+  document.title = isBasket() ? 'Matematyczny basket · policz i traf!' : 'Kosmiczna wyprawa · matematyczna przygoda';
+  document.querySelector('.footer-tag')!.textContent = isBasket() ? 'POLICZ. WYCELUJ. TRAF.' : 'MAŁY PILOT. WIELKA PRZYGODA.';
   canvasHost.classList.remove('visible');
   root.classList.remove('playing');
   const planet = planets[planetIndex];
   screen.className = 'home-screen';
   screen.innerHTML = `<section class="hero"><div class="hero-copy"><div class="eyebrow"><span class="tiny-orbit"></span> WYPRAWA EMILII, JAKUBA I PIOTRA</div>
-    <h1>${pilot().greeting},<br><span>kosmos czeka!</span></h1><p class="hero-description">Pilotuj statek i oswajaj mnożenie oraz dzielenie<br class="wide-only"> do <strong>10 × 10</strong> lub dodawanie i odejmowanie <strong>do 20.</strong></p>
-    <div class="pilot-picker" role="group" aria-label="Wybierz pilota"><span>KTO DZIŚ PILOTUJE?</span>${pilots.map((entry) => `<button data-action="pilot:${entry.id}" aria-pressed="${pilotId === entry.id}" class="${pilotId === entry.id ? 'selected' : ''}">${entry.name}</button>`).join('')}</div>
+    <h1>${pilot().greeting},<br><span>${isBasket() ? 'czas na basket!' : 'kosmos czeka!'}</span></h1><p class="hero-description">${isBasket() ? 'Policz wynik i rzuć do właściwego kosza! Ćwicz mnożenie i dzielenie' : 'Pilotuj statek i oswajaj mnożenie oraz dzielenie'}<br class="wide-only"> do <strong>10 × 10</strong> lub dodawanie i odejmowanie <strong>do 20.</strong></p>
+    <div class="pilot-picker" role="group" aria-label="Wybierz pilota"><span>${isBasket() ? 'KTO DZIŚ GRA?' : 'KTO DZIŚ PILOTUJE?'}</span>${pilots.map((entry) => `<button data-action="pilot:${entry.id}" aria-pressed="${pilotId === entry.id}" class="${pilotId === entry.id ? 'selected' : ''}">${entry.name}</button>`).join('')}</div>
     <div class="hero-badges"><span><i></i> Wasza własna przygoda</span><span>Bez pośpiechu</span><span>Na padzie lub klawiaturze</span></div></div>
-    <div class="hero-visual" aria-hidden="true"><div class="orbit-dash"></div><img class="hero-ship" src="${art}ship.png" alt=""/><span class="coordinate">SEKTOR 10 × 10<span>WSZYSTKIE SYSTEMY GOTOWE</span></span><span class="hero-spark spark-one">✧</span><span class="hero-spark spark-two">+</span></div>
+    <div class="hero-visual" aria-hidden="true">${isBasket() ? `<div class="basket-hero-ball"><i></i><b>×</b></div><div class="basket-hero-rim"><i></i></div><span class="basket-hero-caption">DOBRY WYNIK. CELNY RZUT.</span>` : `<div class="orbit-dash"></div><img class="hero-ship" src="${art}ship.png" alt=""/><span class="coordinate">SEKTOR 10 × 10<span>WSZYSTKIE SYSTEMY GOTOWE</span></span><span class="hero-spark spark-one">✧</span><span class="hero-spark spark-two">+</span>`}</div>
   </section>
-  <section class="mission-panel" aria-labelledby="mission-title"><div class="section-title"><h2 id="mission-title">Przygotuj swoją wyprawę</h2><button class="text-button" data-action="help">Jak gramy? ${icons.arrow}</button></div>
-    <div class="mission-config"><div class="mode-block"><p class="field-label"><span>01</span> CO DZIŚ ĆWICZYMY?</p><div class="mode-options" role="group" aria-label="Rodzaj działań">${(['multiply', 'divide', 'mixed', 'arithmetic'] as Mode[]).map((entry) => `<button class="mode-card ${mode === entry ? 'selected' : ''}" data-action="mode:${entry}" aria-pressed="${mode === entry}"><span class="mode-symbol">${modeSymbols[entry]}</span><span>${modeNames[entry]}<small>${modeDescriptions[entry]}</small></span><i class="selection-dot"></i></button>`).join('')}</div></div>
-    <div class="planet-block"><p class="field-label"><span>02</span> WYBIERZ PLANETĘ</p><div class="planet-options" role="group" aria-label="Cel wyprawy">${planets.map((entry, i) => `<button class="planet-card ${planetIndex === i ? 'selected' : ''}" data-action="planet:${i}" aria-pressed="${planetIndex === i}" style="--planet-color:${entry.color}"><span class="planet-orb ${entry.class}"><i></i></span><span>${entry.name}<small>${stars(progress.planets[entry.id] ?? 0)}</small></span></button>`).join('')}</div></div></div>
-    <div class="launch-row"><button class="settings-button" data-action="settings">${icons.settings}<span>Zakres: <strong>${rangeLabel()}</strong><small>${calm ? 'Spokojny lot' : 'Lot z kryształami'}</small></span></button><div class="mission-summary"><span class="mini-dot" style="background:${planet.color}"></span><span>${planet.subtitle}<small>12 działań · krótka misja · bez limitu odpowiedzi</small></span></div><button class="launch-button" data-action="start" ${!ready ? 'disabled' : ''}><span class="key-a">A</span><span>${failed ? 'Spróbuj ponownie' : ready ? 'Ruszaj w kosmos' : 'Przygotowanie statku…'}</span>${icons.arrow}</button></div>
+  <section class="mission-panel" aria-labelledby="mission-title"><div class="section-title"><h2 id="mission-title">${isBasket() ? 'Przygotuj swój mecz' : 'Przygotuj swoją wyprawę'}</h2><button class="text-button" data-action="help">Jak gramy? ${icons.arrow}</button></div>
+    <div class="game-style-picker" role="group" aria-label="Rodzaj gry"><button data-action="style:basketball" class="${isBasket() ? 'selected' : ''}" aria-pressed="${isBasket()}">🏀 Matematyczny basket <small>Kąt, siła i celny rzut</small></button><button data-action="style:space" class="${!isBasket() ? 'selected' : ''}" aria-pressed="${!isBasket()}">🚀 Kosmiczna wyprawa <small>Statki, lasery i portale</small></button></div><div class="mission-config"><div class="mode-block"><p class="field-label"><span>01</span> CO DZIŚ ĆWICZYMY?</p><div class="mode-options" role="group" aria-label="Rodzaj działań">${(['multiply', 'divide', 'mixed', 'arithmetic'] as Mode[]).map((entry) => `<button class="mode-card ${mode === entry ? 'selected' : ''}" data-action="mode:${entry}" aria-pressed="${mode === entry}"><span class="mode-symbol">${modeSymbols[entry]}</span><span>${modeNames[entry]}<small>${modeDescriptions[entry]}</small></span><i class="selection-dot"></i></button>`).join('')}</div></div>
+    <div class="planet-block"><p class="field-label"><span>02</span> ${isBasket() ? 'WYBIERZ BOISKO' : 'WYBIERZ PLANETĘ'}</p><div class="planet-options" role="group" aria-label="Cel wyprawy">${planets.map((entry, i) => `<button class="planet-card ${planetIndex === i ? 'selected' : ''}" data-action="planet:${i}" aria-pressed="${planetIndex === i}" style="--planet-color:${entry.color}"><span class="planet-orb ${entry.class}"><i></i></span><span>${entry.name}<small>${stars(progress.planets[entry.id] ?? 0)}</small></span></button>`).join('')}</div></div></div>
+    <div class="launch-row"><button class="settings-button" data-action="settings">${icons.settings}<span>Zakres: <strong>${rangeLabel()}</strong><small>${isBasket() ? 'Rzuty bez limitu czasu' : calm ? 'Spokojny lot' : 'Lot z kryształami'}</small></span></button><div class="mission-summary"><span class="mini-dot" style="background:${planet.color}"></span><span>${isBasket() ? 'Policz · ustaw kąt i siłę · rzuć!' : planet.subtitle}<small>12 działań · krótka misja · bez limitu odpowiedzi</small></span></div><button class="launch-button" data-action="start" ${!ready && !isBasket() ? 'disabled' : ''}><span class="key-a">A</span><span>${isBasket() ? 'Zagraj w basket' : failed ? 'Spróbuj ponownie' : ready ? 'Ruszaj w kosmos' : 'Przygotowanie statku…'}</span>${icons.arrow}</button></div>
   </section>
   <section class="home-bottom"><button class="progress-chip" data-action="stats"><span class="chip-icon">${icons.star}</span><span>Twoja kosmiczna historia<small>${progress.missions ? `${progress.missions} ukończonych misji · ${progress.crystals} kryształów` : 'Pierwsza przygoda dopiero przed Tobą'}</small></span>${icons.arrow}</button><button class="hangar-link" data-action="hangar"><span class="mini-ship">✦</span> Hangar <small>${unlockedSkin() + 1}/4 statki</small>${icons.arrow}</button></section>`;
   if (restore) focusAction(restore);
@@ -121,32 +138,96 @@ async function initialize(): Promise<void> {
     ready = true;
     failed = false;
     applySkin();
-    renderHome();
+    if (view === 'home') renderHome();
   } catch (error) {
     console.error('Nie udało się przygotować grafiki gry:', error);
     failed = true;
+    if (isBasket()) return;
     toast('Nie udało się uruchomić grafiki. Odśwież stronę i sprawdź akcelerację sprzętową przeglądarki.', 15);
     const button = screen.querySelector<HTMLButtonElement>('[data-action="start"]');
     if (button) { button.disabled = false; button.textContent = 'Odśwież grę'; }
   }
 }
 function startMission(): void {
-  if (!ready) { if (failed) location.reload(); return; }
+  if (!ready && !isBasket()) { if (failed) location.reload(); return; }
   sound.unlock();
   sound.play('select');
   view = 'game';
   questionIndex = 0; firstTryCount = 0; missionCrystals = 0; recent = []; earnedStars = 0; missionSaved = false; answerPending = false;
   phase = 'flight'; phaseTime = 0;
-  scene.reset();
+  if (ready) scene.reset();
   scene.setTheme(planets[planetIndex].hex, planetIndex);
   applySkin();
   scene.setPhase(calm ? 'question' : 'flight');
-  canvasHost.classList.add('visible');
+  canvasHost.classList.toggle('visible', !isBasket());
   root.classList.add('playing');
-  if (calm) newQuestion(); else renderGame();
+  if (isBasket() || calm) newQuestion(); else renderGame();
   (document.activeElement as HTMLElement)?.blur();
 }
+function renderBasketGame(): void {
+  document.querySelector('.controller-guide')!.innerHTML = '<kbd>↑ ↓</kbd> kąt <kbd>← →</kbd> siła <span class="key-a">A</span> / <kbd>Enter</kbd> rzut <kbd>P</kbd> pauza';
+  screen.className = `game-screen basket-game${phase === 'correct' ? ' basket-success' : ''}`;
+  screen.innerHTML = `<div class="game-hud"><button class="hud-destination" data-action="pause"><span class="basket-hud-icon">🏀</span><span>Matematyczny basket<small>${modeNames[mode]} · zakres ${rangeLabel()} · ${pilot().name}</small></span></button><div class="mission-dots" aria-label="${questionIndex} z ${questionCount} działań">${Array.from({ length: questionCount }, (_, i) => `<i class="${i < questionIndex ? 'done' : i === questionIndex ? 'current' : ''}"></i>`).join('')}</div><div class="hud-right"><span class="crystal-count"><span>★</span><b>${missionCrystals}</b></span><button class="icon-button" data-action="pause" aria-label="Pauza">Ⅱ</button></div></div>
+    <section class="basket-question"><div><span class="eyebrow">POLICZ I TRAF · ${questionIndex + 1} / ${questionCount}</span><h2 class="equation">${equation(fact)} <span>= ?</span></h2></div><p id="basket-message" role="status" aria-live="polite">${phase === 'correct' ? `Brawo, ${pilot().greeting}! ${equation(fact)} = ${fact.answer}. Celny kosz!` : basketMessage || 'Który kosz ma dobry wynik? Ustaw swój rzut.'}</p><button class="text-button" data-action="hint" ${answerPending || phase === 'correct' ? 'disabled' : ''}><span class="key-x">X</span> / H · Podpowiedź</button></section>
+    <div class="basket-stage court-${planetIndex}">${courtMarkup(basketball.hoops, choices, pilot().name)}${hintShown && phase !== 'correct' ? `<div class="basket-hint">${hintMarkup()}</div>` : ''}<div class="basket-side-note">WIDOK Z BOKU <span>RZUT Z LEWEJ →</span></div></div>
+    <div class="throw-controls"><div class="throw-control"><label for="throw-angle"><span>KĄT <small>↑ ↓</small></span><output id="angle-value">${Math.round(throwAngle)}°</output></label><div><button data-action="aim:angle:-2" aria-label="Zmniejsz kąt">−</button><input id="throw-angle" type="range" min="25" max="78" step="1" value="${throwAngle}" aria-label="Kąt rzutu"/><button data-action="aim:angle:2" aria-label="Zwiększ kąt">+</button></div></div><div class="throw-control"><label for="throw-power"><span>SIŁA <small>← →</small></span><output id="power-value">${Math.round(throwPower)}%</output></label><div><button data-action="aim:power:-2" aria-label="Zmniejsz siłę">−</button><input id="throw-power" type="range" min="10" max="100" step="1" value="${throwPower}" aria-label="Siła rzutu"/><button data-action="aim:power:2" aria-label="Zwiększ siłę">+</button></div></div><button class="launch-button throw-button" data-action="throw"><span class="key-a">A</span><span id="throw-caption">Rzuć piłkę</span>${icons.arrow}</button><span class="throw-keyboard">Enter / Spacja<br><small>Bez limitu prób</small></span></div>`;
+  updateBasketVisual();
+}
+function changeAim(control: string, delta: number): void {
+  if (!delta || view !== 'game' || modal || phase !== 'question') return;
+  if (control === 'angle') throwAngle = Math.min(78, Math.max(25, throwAngle + delta));
+  else throwPower = Math.min(100, Math.max(10, throwPower + delta));
+  updateBasketVisual();
+}
+function shootBasket(): void {
+  if (view !== 'game' || modal || phase !== 'question') return;
+  if (!basketball.shoot(throwAngle, throwPower, true)) return;
+  sound.unlock(); sound.play('launch'); answerPending = true;
+  basketMessage = 'Piłka w grze…';
+  document.querySelector('#basket-message')!.textContent = basketMessage;
+  (document.activeElement as HTMLElement)?.blur();
+  updateBasketVisual();
+}
+function updateBasketVisual(): void {
+  const body = basketball.ball;
+  const position = basketball.active || phase === 'correct' ? body?.position ?? LAUNCH : LAUNCH;
+  document.querySelector('#basket-ball')?.setAttribute('transform', `translate(${position.x} ${position.y}) rotate(${(body?.angle ?? 0) * 180 / Math.PI})`);
+  const preview = document.querySelector('#aim-preview');
+  if (preview) {
+    const velocity = shotVelocity(throwAngle, throwPower);
+    preview.innerHTML = phase === 'correct' ? '' : Array.from({ length: 9 }, (_, i) => { const t = (i + 1) * 0.07; return `<circle cx="${LAUNCH.x + velocity.x * 60 * t}" cy="${LAUNCH.y + velocity.y * 60 * t + 400 * t * t}" r="${3.5 - i * 0.2}" opacity="${0.9 - i * 0.07}"/>`; }).join('');
+  }
+  for (const [id, value, suffix] of [['angle', throwAngle, '°'], ['power', throwPower, '%']] as const) {
+    const output = document.querySelector(`#${id}-value`); if (output) output.textContent = `${Math.round(value)}${suffix}`;
+    const slider = document.querySelector<HTMLInputElement>(`#throw-${id}`); if (slider) { slider.value = String(value); slider.disabled = phase !== 'question'; }
+  }
+  screen.querySelectorAll<HTMLButtonElement>('[data-action^="aim:"], [data-action="throw"]').forEach((button) => button.disabled = phase !== 'question');
+  const hintButton = screen.querySelector<HTMLButtonElement>('[data-action="hint"]'); if (hintButton) hintButton.disabled = answerPending || phase !== 'question';
+  const caption = document.querySelector('#throw-caption'); if (caption) caption.textContent = phase === 'correct' ? 'Celny kosz!' : basketball.active ? 'Rzuć ponownie' : 'Rzuć piłkę';
+}
+function tickBasket(seconds: number): void {
+  if (phase === 'question') { changeAim('power', input.movement * seconds * 32); changeAim('angle', -input.verticalMovement * seconds * 24); }
+  const result = basketball.tick(seconds);
+  if (result && phase === 'question') {
+    if (result.kind === 'basket') { resolveAnswer(result.index); screen.querySelector(`[data-hoop="${result.index}"]`)?.classList.add(choices[result.index] === fact.answer ? 'scored' : 'wrong-basket'); }
+    else { answerPending = false; basketMessage = 'Blisko! Popraw kąt lub siłę i spróbuj jeszcze raz.'; document.querySelector('#basket-message')!.textContent = basketMessage; }
+  }
+  updateBasketVisual();
+  if (phase === 'correct') {
+    phaseTime += seconds;
+    if (phaseTime >= 2) { questionIndex++; if (questionIndex >= questionCount) finishMission(); else newQuestion(); }
+  }
+}
+root.addEventListener('input', (event) => {
+  const slider = event.target as HTMLInputElement;
+  if (!isBasket() || modal || phase !== 'question') return;
+  if (slider.id === 'throw-angle') throwAngle = Number(slider.value);
+  else if (slider.id === 'throw-power') throwPower = Number(slider.value);
+  else return;
+  updateBasketVisual();
+});
 function renderGame(): void {
+  if (isBasket()) { renderBasketGame(); return; }
   screen.className = `game-screen encounter-${encounter()}${answerPending ? ' answer-pending' : ''}${phase === 'correct' ? ' answer-success' : ''}`;
   const planet = planets[planetIndex];
   const station = questionIndex >= questionCount - 3;
@@ -156,7 +237,7 @@ function renderGame(): void {
   syncAnswerTargets();
 }
 function syncAnswerTargets(): void {
-  if (ready && view === 'game' && phase !== 'flight') scene.setAnswerTargets([...screen.querySelectorAll<HTMLElement>('.answer-gate')], selectedAnswer);
+  if (!isBasket() && ready && view === 'game' && phase !== 'flight') scene.setAnswerTargets([...screen.querySelectorAll<HTMLElement>('.answer-gate')], selectedAnswer);
 }
 scene.onResize = syncAnswerTargets;
 function flightMarkup(): string {
@@ -190,11 +271,12 @@ function newQuestion(): void {
   fact = chooseFact(factPool(mode, range), progress, recent, progress.missions * questionCount + questionIndex);
   recent.push(fact.id);
   choices = answerChoices(fact);
-  scene.setPhase('question'); scene.setTarget(selectedAnswer);
+  if (isBasket()) { basketball.reset(questionIndex); basketMessage = ''; }
+  scene.setPhase(isBasket() ? 'idle' : 'question'); scene.setTarget(selectedAnswer);
   renderGame();
 }
 function answer(index: number): void {
-  if (phase !== 'question' || modal || answerPending || incorrect.has(index) || choices[index] === undefined) return;
+  if (isBasket() || phase !== 'question' || modal || answerPending || incorrect.has(index) || choices[index] === undefined) return;
   selectedAnswer = index;
   scene.setTarget(index);
   if (encounter() === 'gate') { resolveAnswer(index); return; }
@@ -206,7 +288,7 @@ function answer(index: number): void {
 }
 function resolveAnswer(index: number): void {
   answerPending = false;
-  if (encounter() !== 'gate') scene.celebrateAnswer(choices[index] === fact.answer);
+  if (!isBasket() && encounter() !== 'gate') scene.celebrateAnswer(choices[index] === fact.answer);
   if (choices[index] === fact.answer) {
     if (firstTry) firstTryCount++;
     missionCrystals += firstTry ? 5 : 3;
@@ -219,6 +301,7 @@ function resolveAnswer(index: number): void {
     input.getPad()?.vibrationActuator?.playEffect('dual-rumble', { duration: 140, strongMagnitude: 0.15, weakMagnitude: 0.35 }).catch(() => {});
   } else {
     firstTry = false; hintShown = true; incorrect.add(index);
+    if (isBasket()) basketMessage = `Trafiony kosz, ale ${choices[index]} to inny wynik. Policz i spróbuj ponownie!`;
     sound.play('hint');
     selectedAnswer = choices.findIndex((_, i) => !incorrect.has(i));
     scene.setTarget(selectedAnswer);
@@ -233,6 +316,7 @@ function showHint(): void {
 function finishMission(): void {
   view = 'result';
   scene.setPhase('idle');
+  basketball.active = false;
   earnedStars = firstTryCount >= 10 ? 3 : firstTryCount >= 6 ? 2 : 1;
   if (!missionSaved) {
     if (storageAvailable) progress = parseProgress(readStored(storageKey));
@@ -244,7 +328,7 @@ function finishMission(): void {
   sound.play('win');
   const newSkin = [1, 3, 5].includes(progress.missions);
   screen.className = 'result-screen';
-  screen.innerHTML = `<section class="result-card"><span class="eyebrow">MISJA ZAKOŃCZONA</span><div class="result-planet"><span class="planet-orb ${planets[planetIndex].class}"><i></i></span><span class="result-spark">✦</span></div><h1>${pilot().greeting}, misja wykonana!</h1><p>Stacja ${planets[planetIndex].name} działa, a Ty masz za sobą kolejną kosmiczną przygodę.</p><div class="result-stars">${stars(earnedStars)}</div><div class="result-numbers"><span><strong>${questionCount}</strong>rozwiązanych działań</span><span><strong>${firstTryCount}</strong>bez podpowiedzi</span><span><strong>◆ ${missionCrystals}</strong>nowych kryształów</span></div><div class="result-note">${newSkin ? '✦ Nowy kolor statku czeka na Ciebie w hangarze!' : `Każda próba to krok naprzód. Dobra robota, ${pilot().greeting}!`}${!storageAvailable ? '<br>Przeglądarka blokuje zapis. Postępy pozostaną do zamknięcia strony.' : ''}</div><div class="result-actions"><button class="secondary-button" data-action="home">Mapa wypraw</button><button class="launch-button" data-action="start"><span class="key-a">A</span> Jeszcze jedna misja ${icons.arrow}</button></div>${newSkin ? '<button class="text-button" data-action="hangar">Zobacz nowy statek →</button>' : ''}</section>`;
+  screen.innerHTML = `<section class="result-card"><span class="eyebrow">${isBasket() ? 'MECZ ZAKOŃCZONY' : 'MISJA ZAKOŃCZONA'}</span><div class="result-planet"><span class="planet-orb ${planets[planetIndex].class}"><i></i></span><span class="result-spark">✦</span></div><h1>${pilot().greeting}, ${isBasket() ? 'świetny mecz!' : 'misja wykonana!'}</h1><p>${isBasket() ? 'Dwanaście działań i dwanaście celnych koszy. Piękna gra!' : `Stacja ${planets[planetIndex].name} działa, a Ty masz za sobą kolejną kosmiczną przygodę.`}</p><div class="result-stars">${stars(earnedStars)}</div><div class="result-numbers"><span><strong>${questionCount}</strong>rozwiązanych działań</span><span><strong>${firstTryCount}</strong>bez podpowiedzi</span><span><strong>◆ ${missionCrystals}</strong>nowych kryształów</span></div><div class="result-note">${newSkin ? '✦ Nowy kolor statku czeka na Ciebie w hangarze!' : `Każda próba to krok naprzód. Dobra robota, ${pilot().greeting}!`}${!storageAvailable ? '<br>Przeglądarka blokuje zapis. Postępy pozostaną do zamknięcia strony.' : ''}</div><div class="result-actions"><button class="secondary-button" data-action="home">Mapa wypraw</button><button class="launch-button" data-action="start"><span class="key-a">A</span> Jeszcze jedna misja ${icons.arrow}</button></div>${newSkin ? '<button class="text-button" data-action="hangar">Zobacz nowy statek →</button>' : ''}</section>`;
   focusAction('start');
 }
 
@@ -253,7 +337,7 @@ scene.onAnswerImpact = resolveAnswer;
 scene.onCrystal = () => { missionCrystals++; sound.play('crystal'); const counter = document.querySelector('#crystal-count'); if (counter) counter.textContent = String(missionCrystals); };
 scene.onBump = () => toast('Mała turbulencja. Lecimy dalej!', 1.5);
 scene.onTick = (seconds) => {
-  if (view !== 'game' || modal) return;
+  if (isBasket() || view !== 'game' || modal) return;
   phaseTime += seconds;
   if (phase === 'flight') {
     const duration = questionIndex === 0 ? 16 : 12;
@@ -291,6 +375,9 @@ function openModal(kind: NonNullable<typeof modal>): void {
     const practice = Object.entries(progress.facts).filter(([, record]) => record.wrong > 0 && record.streak < 3).sort((a, b) => b[1].wrong - a[1].wrong).slice(0, 6);
     content = modalTemplate('Twoja kosmiczna historia', 'DZIENNIK PILOTA', `<div class="stats-grid"><span><strong>${progress.missions}</strong>ukończonych misji</span><span><strong>${progress.crystals}</strong>kryształów</span><span><strong>${practiced}</strong>różnych działań</span><span><strong>${mastered}</strong>opanowanych działań</span></div><h3>Nasze planety</h3><div class="stats-planets">${planets.map((entry) => `<span>${entry.name}<span>${stars(progress.planets[entry.id] ?? 0)}</span></span>`).join('')}</div>${practice.length ? `<h3>Do poćwiczenia podczas kolejnych misji</h3><div class="practice-facts">${practice.map(([id]) => { const [op, a, b] = id.split(':'); return `<span>${a} ${{ m: '×', d: '÷', a: '+', s: '−' }[op] ?? '?'} ${b}</span>`; }).join('')}</div>` : '<p>Robot pomocnik będzie zapamiętywać działania, które warto powtórzyć.</p>'}<p class="setting-note">Opanowane = 3 poprawne odpowiedzi z rzędu bez pomocy. Postępy są zapisane w tej przeglądarce, na tym komputerze.${!storageAvailable ? ' Uwaga: zapis jest obecnie zablokowany przez przeglądarkę.' : ''}</p><button class="launch-button modal-primary" data-action="close">Gotowe →</button>`);
   }
+  if (isBasket() && kind === 'help') content = modalTemplate('Policz. Wyceluj. Traf!', 'MATEMATYCZNY BASKET', `<div class="how-steps"><div><b>01</b><span><strong>Znajdź dobry wynik</strong>Każdy kosz ma inną odpowiedź. Oblicz działanie i wybierz swój cel.</span></div><div><b>02</b><span><strong>Ustaw kąt i siłę</strong>Góra / dół zmienia kąt. Lewo / prawo zmienia siłę. Możesz też użyć suwaków. Kropki pokazują początek toru lotu.</span></div><div><b>03</b><span><strong>Rzuć piłkę</strong>A na padzie lub Enter / Spacja wykonuje rzut. Piłka odbija się od tablic, obręczy i boiska. Kosz liczy się przy wpadnięciu od góry.</span></div><div><b>04</b><span><strong>Próbuj, ile potrzebujesz</strong>Kąt i siłę możesz poprawić od razu, a A / Enter ponawia rzut bez czekania na piłkę. X / H pokaże pomoc w liczeniu. Start / P — pauza.</span></div></div><button class="launch-button modal-primary" data-action="close">Gramy! →</button>`);
+  if (isBasket() && kind === 'pause') content = modalTemplate('Przerwa na boisku', 'PAUZA', '<p>Piłka i mecz czekają. Wrócisz dokładnie do tego samego rzutu.</p><div class="stacked-actions"><button class="launch-button" data-action="close"><span class="key-a">A</span> Wracamy na boisko →</button><button class="secondary-button" data-action="restart">Zacznij mecz od początku</button><button class="text-button" data-action="leave">Wróć do menu</button></div>');
+  if (isBasket() && kind === 'settings') content = content.replace(/<h3>Jak lecimy[\s\S]*?<button class="launch-button modal-primary"/, '<p class="setting-note">W baskecie każdy rzut wykonujesz samodzielnie. Nie ma limitu czasu ani liczby prób.</p><button class="launch-button modal-primary"');
   const restore = focusedAction();
   modalRoot.innerHTML = content;
   screen.inert = true;
@@ -354,6 +441,11 @@ input.onCommand = (command) => {
     } else if (['left', 'right', 'up', 'down'].includes(command)) navigate(command);
     return;
   }
+  if (isBasket()) {
+    if (command === 'confirm') shootBasket();
+    else if (command === 'hint' && !basketball.active) showHint();
+    return;
+  }
   if (phase === 'flight') { if (command === 'confirm') newQuestion(); return; }
   if (phase !== 'question' || answerPending) return;
   if (command === 'left' || command === 'right') {
@@ -369,7 +461,10 @@ root.addEventListener('click', async (event) => {
   if (!button || button.disabled) return;
   const action = button.dataset.action!;
   sound.unlock();
-  if (action.startsWith('mode:')) { mode = action.split(':')[1] as Mode; sound.play('select'); renderHome(action); }
+  if (action.startsWith('style:')) { gameStyle = action.endsWith('space') ? 'space' : 'basketball'; storeOption('matematyczny-basket:style', gameStyle); renderHome(action); }
+  else if (action === 'throw') shootBasket();
+  else if (action.startsWith('aim:')) { const [, control, delta] = action.split(':'); changeAim(control, Number(delta)); }
+  else if (action.startsWith('mode:')) { mode = action.split(':')[1] as Mode; sound.play('select'); renderHome(action); }
   else if (action.startsWith('pilot:')) { pilotId = action.split(':')[1]; storeOption('kosmiczna-wyprawa:pilot', pilotId); sound.play('select'); renderHome(action); }
   else if (action.startsWith('planet:')) { planetIndex = Number(action.split(':')[1]); sound.play('select'); renderHome(action); }
   else if (action.startsWith('range:')) { range = action.split(':')[1] as Range; openModal('settings'); }
@@ -413,6 +508,10 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('visibilitychange', () => { if (document.hidden && view === 'game' && !modal) openModal('pause'); });
 window.addEventListener('blur', () => { if (view === 'game' && !modal) openModal('pause'); });
 function monitor(): void {
+  const now = performance.now();
+  const seconds = Math.min((now - lastMonitorTime) / 1000, 0.05);
+  lastMonitorTime = now;
+  if (isBasket() && view === 'game' && !modal) tickBasket(seconds);
   if (toastClock && performance.now() > toastClock) { document.querySelector('#toast')!.textContent = ''; toastClock = 0; }
   if (modal === 'pad') {
     const pad = input.getPad();

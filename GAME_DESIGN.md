@@ -36,3 +36,13 @@ Autorskie ilustracje wygenerowane przez ImageGen: kosmiczne tło i statek z prze
 ## Zapis i publikacja
 
 Postępy zapisują się lokalnie w przeglądarce; gra nie wymaga konta ani backendu. Postępy nie synchronizują się między urządzeniami. Technologia: PixiJS 8, TypeScript i Vite. Automatyczny test, build oraz deployment na GitHub Pages po pushu do main. Repozytorium: maciejkoch/Tabliczka-mnozenia.
+
+## Matematyczny basket
+
+Domyślny, dodatkowy tryb na bocznym boisku. Trzy odpowiedzi wiszą pod koszami rozmieszczonymi na różnych wysokościach i odległościach. Postać rzuca z lewej w prawo. Gracz reguluje kąt (25–78°) i siłę (10–100%), bez automatycznego naprowadzania na kosz. Krótka sekwencja kropek pokazuje początek trajektorii.
+
+Matter.js symuluje okrągłą piłkę, grawitację, tarcie, obrót oraz kolizje z dwoma końcami obręczy, tablicami, podłożem i granicami boiska. Krok fizyki 1/240 sekundy jest niezależny od odświeżania ekranu. Trafienie rozstrzyga się jednokrotnie po przejściu piłki od góry przez wnętrze obręczy; nie po dotknięciu kosza. Po trafieniu piłka dalej spada. Po pudle wraca do dłoni, zachowując ustawienia. Kąt i siłę można poprawiać podczas lotu, a ponowne naciśnięcie A / Enter lub „Rzuć ponownie” natychmiast zastępuje piłkę nowym rzutem. Jeśli gracz nie ponawia rzutu, piłka wraca do dłoni po zatrzymaniu lub po 8 sekundach.
+
+Nietrafiony rzut nie zmienia działania ani zapisu opanowania działania. Błędny wynik daje pomoc i możliwość ponownego rzutu. Poprawny kosz daje 5 lub 3 punkty/kryształy i następne działanie po 2 sekundach. Dwanaście poprawnych koszy kończy mecz. Zakresy, profile dzieci, lokalny zapis i odblokowania są współdzielone z dotychczasową wyprawą. Trzy układy koszy zmieniają się między działaniami; test fizyki sprawdza osiągalność każdego kosza.
+
+Grafika jest wektorowa (SVG): boisko o zmierzchu, góry, postać, tablice, obręcze, siatki i obracająca się piłka. Rysunek korzysta z tych samych współrzędnych co fizyka.

@@ -5,12 +5,12 @@ export class Sound {
     if (!this.enabled) return;
     try { this.context ??= new AudioContext(); void this.context.resume().catch(() => {}); } catch { /* audio is optional */ }
   }
-  play(kind: 'select' | 'correct' | 'hint' | 'crystal' | 'win' | 'laser' | 'launch'): void {
+  play(kind: 'select' | 'correct' | 'hint' | 'crystal' | 'win' | 'laser' | 'launch' | 'bounce'): void {
     if (!this.enabled) return;
     this.unlock();
     const context = this.context;
     if (!context || context.state !== 'running') return;
-    const melodies = { select: [350], correct: [523, 659, 784], hint: [330, 392], crystal: [1100, 1400], win: [523, 659, 784, 1047], laser: [1400, 700], launch: [220, 440, 880] };
+    const melodies = { bounce: [130], select: [350], correct: [523, 659, 784], hint: [330, 392], crystal: [1100, 1400], win: [523, 659, 784, 1047], laser: [1400, 700], launch: [220, 440, 880] };
     melodies[kind].forEach((frequency, index) => {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
