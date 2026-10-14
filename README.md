@@ -1,12 +1,14 @@
 # Kosmiczna wyprawa 🚀
 
-Gra edukacyjna dla dzieci: mnożenie i dzielenie w zakresie **10 × 10**, lot statkiem, trzy planety i nagrody. Zaprojektowana do wyświetlania na dużym telewizorze i sterowania padem.
+Gra edukacyjna dla dzieci: mnożenie i dzielenie w zakresie **10 × 10** oraz **dodawanie i odejmowanie do 20**, lot statkiem, trzy planety i nagrody. Zaprojektowana do wyświetlania na dużym telewizorze i sterowania padem.
 
 **Graj:** https://maciejkoch.github.io/Tabliczka-mnozenia/
 
+Wyprawa przygotowana dla **Emilii, Jakuba i Piotra**. Wybierz pilota w menu; gra przywita dziecko po imieniu i będzie zwracać się do niego podczas lotu, podpowiedzi i ukończenia misji. Wybór jest zapamiętywany, a postępy na jednym komputerze są wspólne.
+
 ## Jak uruchomić
 
-Podłącz komputer do telewizora, podłącz pad, otwórz grę i naciśnij przycisk na padzie. Ikona w prawym górnym rogu włącza pełny ekran. „Podłącz pada” otwiera test kontrolera. W ustawieniach wybierz całą tabliczkę albo zakres 1–5 / 6–10. Spokojny tryb pomija przeloty.
+Podłącz komputer do telewizora, podłącz pad, otwórz grę i naciśnij przycisk na padzie. Ikona w prawym górnym rogu włącza pełny ekran. „Podłącz pada” otwiera test kontrolera. W ustawieniach wybierz całą tabliczkę albo zakres 1–5 / 6–10. Tryb „Do 20” miesza dodawanie i odejmowanie, uwzględnia zero i nie generuje wyników ujemnych. Pierwszy przelot trwa 16 sekund, kolejne 12 sekund. Spokojny tryb pomija przeloty.
 
 | Akcja | Standardowy pad | Klawiatura |
 | --- | --- | --- |

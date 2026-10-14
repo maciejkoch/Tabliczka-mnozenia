@@ -2,11 +2,14 @@
 
 Gra webowa dla dziewięciolatka, wyświetlana na telewizorze podłączonym do komputera i obsługiwana padem. Nauka mnożenia i dzielenia w zakresie tabliczki do 10 × 10.
 
+Gra jest spersonalizowana dla Emilii, Jakuba i Piotra. Na ekranie startowym wybiera się pilota; imię pojawia się w powitaniu, przelotach, podpowiedziach, po poprawnej odpowiedzi i na ekranie ukończenia misji. Wybór pilota jest zapamiętany w przeglądarce. Postępy pozostają wspólne na danym komputerze.
+
 ## Zakres nauki
 
 - Mnożenie: oba czynniki od 1 do 10, wyniki od 1 do 100.
 - Dzielenie: działania odwrotne, dzielniki i ilorazy od 1 do 10, dzielne do 100. Zawsze bez reszty, bez dzielenia przez zero.
-- Tryby: mnożenie, dzielenie oraz mieszany.
+- Tryby: mnożenie, dzielenie, mieszany (mnożenie i dzielenie) oraz „Do 20” (dodawanie i odejmowanie).
+- Tryb „Do 20”: liczby od 0 do 20, sumy do 20 i odejmowanie bez wyników ujemnych. Podpowiedzi pokazują łączenie grup kryształów lub przekreślanie zabieranych kryształów.
 - Zakres: 1–5, 6–10 lub pełna tabliczka. Zakres ogranicza pierwszy czynnik mnożenia lub dzielnik; drugi czynnik i iloraz pozostają od 1 do 10.
 - Działania wymagające pomocy wracają częściej. Przynajmniej cztery ostatnie pytania są wyłączane z natychmiastowej powtórki.
 - Brak limitu czasu odpowiedzi. Podpowiedź pokazuje grupy kryształów i sposób obliczenia. Dziecko próbuje aż do poprawnej odpowiedzi, bez utraty nagród.
@@ -14,7 +17,7 @@ Gra webowa dla dziewięciolatka, wyświetlana na telewizorze podłączonym do ko
 ## Pętla gry
 
 1. Wybierz rodzaj działań, planetę i zakres.
-2. Pilotuj automatycznie lecący statek. Zbieraj kryształy i omijaj asteroidy. Zderzenia powodują jedynie lekkie przesunięcie.
+2. Pilotuj automatycznie lecący statek. Pierwszy przelot trwa 16 sekund, kolejne 12 sekund. Można ręcznie przejść do działania. Zbieraj kryształy i omijaj asteroidy. Zderzenia powodują jedynie lekkie przesunięcie.
 3. Przy bramie wybierz jeden z trzech wyników i zatwierdź.
 4. Poprawna odpowiedź otwiera bramę i uruchamia animację skoku.
 5. Ostatnie trzy działania uruchamiają stację. Łącznie jedna misja ma 12 działań.

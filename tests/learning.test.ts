@@ -1,6 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { answerChoices, chooseFact, factPool, freshProgress, parseProgress, updateFact } from '../src/learning.ts';
+import { answerChoices, chooseFact, equation, explanation, factPool, freshProgress, parseProgress, updateFact } from '../src/learning.ts';
+
+test('addition and subtraction cover 0–20, including zero, with no negative results or sums over 20', () => {
+  const pool = factPool('arithmetic', 'all');
+  assert.equal(pool.length, 462);
+  assert.equal(new Set(pool.map((fact) => fact.id)).size, 462);
+  for (let a = 0; a <= 20; a++) for (let b = 0; b <= 20; b++) {
+    assert.equal(pool.some((fact) => fact.op === 'add' && fact.a === a && fact.b === b && fact.answer === a + b), a + b <= 20);
+    assert.equal(pool.some((fact) => fact.op === 'subtract' && fact.a === a && fact.b === b && fact.answer === a - b), b <= a);
+  }
+  assert.deepEqual(factPool('arithmetic', 'easy'), pool);
+  assert.deepEqual(factPool('arithmetic', 'hard'), pool);
+  for (const fact of pool) {
+    assert.ok(fact.a >= 0 && fact.a <= 20 && fact.b >= 0 && fact.b <= 20);
+    assert.ok(fact.answer >= 0 && fact.answer <= 20);
+    assert.equal(equation(fact), `${fact.a} ${fact.op === 'add' ? '+' : '−'} ${fact.b}`);
+    assert.ok(explanation(fact).includes(fact.op === 'add' ? 'dokładasz' : 'zabierasz'));
+  }
+});
+
+test('arithmetic answer gates include zero and stay inside 0–20 even at the boundaries', () => {
+  for (const fact of factPool('arithmetic', 'all')) for (let trial = 0; trial < 10; trial++) {
+    const choices = answerChoices(fact);
+    assert.equal(choices.length, 3);
+    assert.equal(new Set(choices).size, 3);
+    assert.ok(choices.includes(fact.answer));
+    assert.ok(choices.every((choice) => Number.isInteger(choice) && choice >= 0 && choice <= 20));
+  }
+});
 
 test('full mixed pool contains every multiplication and exact inverse division through 10 × 10', () => {
   const facts = factPool('mixed', 'all');

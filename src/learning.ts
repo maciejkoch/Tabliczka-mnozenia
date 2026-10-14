@@ -1,6 +1,7 @@
-export type Mode = 'multiply' | 'divide' | 'mixed';
+export type Mode = 'multiply' | 'divide' | 'mixed' | 'arithmetic';
 export type Range = 'all' | 'easy' | 'hard';
-export type Fact = { id: string; op: 'multiply' | 'divide'; a: number; b: number; answer: number };
+export type Fact = { id: string; op: 'multiply' | 'divide' | 'add' | 'subtract'; a: number; b: number; answer: number };
+export const operationSymbols = { multiply: '×', divide: '÷', add: '+', subtract: '−' };
 export type RecordEntry = { correct: number; wrong: number; streak: number; lastSeen: number };
 export type Progress = { version: 1; missions: number; crystals: number; facts: Record<string, RecordEntry>; planets: Record<string, number> };
 
@@ -10,6 +11,15 @@ export function freshProgress(): Progress {
 
 export function factPool(mode: Mode, range: Range): Fact[] {
   const facts: Fact[] = [];
+  if (mode === 'arithmetic') {
+    for (let a = 0; a <= 20; a++) {
+      for (let b = 0; b <= 20; b++) {
+        if (a + b <= 20) facts.push({ id: `a:${a}:${b}`, op: 'add', a, b, answer: a + b });
+        if (b <= a) facts.push({ id: `s:${a}:${b}`, op: 'subtract', a, b, answer: a - b });
+      }
+    }
+    return facts;
+  }
   const low = range === 'hard' ? 6 : 1;
   const high = range === 'easy' ? 5 : 10;
   for (let a = low; a <= high; a++) {
@@ -40,15 +50,17 @@ export function chooseFact(pool: Fact[], progress: Progress, recent: string[], q
 }
 
 export function answerChoices(fact: Fact, random = Math.random): number[] {
-  const upper = fact.op === 'divide' ? 10 : 100;
+  const arithmetic = fact.op === 'add' || fact.op === 'subtract';
+  const lower = arithmetic ? 0 : 1;
+  const upper = arithmetic ? 20 : fact.op === 'divide' ? 10 : 100;
   const choices = new Set<number>([fact.answer]);
-  const offsets = fact.op === 'divide' ? [-1, 1, -2, 2] : [-fact.b, fact.b, -fact.a, fact.a, -1, 1];
+  const offsets = fact.op === 'divide' || arithmetic ? [-1, 1, -2, 2] : [-fact.b, fact.b, -fact.a, fact.a, -1, 1];
   for (const offset of offsets.sort(() => random() - 0.5)) {
     const value = fact.answer + offset;
-    if (value >= 1 && value <= upper) choices.add(value);
+    if (value >= lower && value <= upper) choices.add(value);
     if (choices.size === 3) break;
   }
-  for (let value = 1; choices.size < 3; value++) choices.add(value);
+  for (let value = lower; choices.size < 3; value++) choices.add(value);
   const shuffled = [...choices];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
@@ -66,10 +78,12 @@ export function updateFact(progress: Progress, fact: Fact, firstTry: boolean, in
 }
 
 export function equation(fact: Fact): string {
-  return `${fact.a} ${fact.op === 'multiply' ? '×' : '÷'} ${fact.b}`;
+  return `${fact.a} ${operationSymbols[fact.op]} ${fact.b}`;
 }
 
 export function explanation(fact: Fact): string {
+  if (fact.op === 'add') return `Masz ${fact.a} kryształów i dokładasz ${fact.b}. Policz wszystkie kryształy razem.`;
+  if (fact.op === 'subtract') return `Masz ${fact.a} kryształów i zabierasz ${fact.b}. Policz te, które zostały.`;
   if (fact.op === 'divide') return `Podziel ${fact.a} kryształów na grupy po ${fact.b}. Ile grup powstanie?`;
   if (fact.a === 1) return `Jedna grupa po ${fact.b} kryształów. Policz kryształy w grupie.`;
   if (fact.a > 5) return `5 × ${fact.b} = ${5 * fact.b}. Dodaj jeszcze ${fact.a - 5} ${fact.a - 5 === 1 ? 'grupę' : fact.a - 5 < 5 ? 'grupy' : 'grup'} po ${fact.b}.`;
