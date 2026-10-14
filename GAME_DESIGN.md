@@ -1,0 +1,35 @@
+# Kosmiczna wyprawa
+
+Gra webowa dla dziewięciolatka, wyświetlana na telewizorze podłączonym do komputera i obsługiwana padem. Nauka mnożenia i dzielenia w zakresie tabliczki do 10 × 10.
+
+## Zakres nauki
+
+- Mnożenie: oba czynniki od 1 do 10, wyniki od 1 do 100.
+- Dzielenie: działania odwrotne, dzielniki i ilorazy od 1 do 10, dzielne do 100. Zawsze bez reszty, bez dzielenia przez zero.
+- Tryby: mnożenie, dzielenie oraz mieszany.
+- Zakres: 1–5, 6–10 lub pełna tabliczka. Zakres ogranicza pierwszy czynnik mnożenia lub dzielnik; drugi czynnik i iloraz pozostają od 1 do 10.
+- Działania wymagające pomocy wracają częściej. Przynajmniej cztery ostatnie pytania są wyłączane z natychmiastowej powtórki.
+- Brak limitu czasu odpowiedzi. Podpowiedź pokazuje grupy kryształów i sposób obliczenia. Dziecko próbuje aż do poprawnej odpowiedzi, bez utraty nagród.
+
+## Pętla gry
+
+1. Wybierz rodzaj działań, planetę i zakres.
+2. Pilotuj automatycznie lecący statek. Zbieraj kryształy i omijaj asteroidy. Zderzenia powodują jedynie lekkie przesunięcie.
+3. Przy bramie wybierz jeden z trzech wyników i zatwierdź.
+4. Poprawna odpowiedź otwiera bramę i uruchamia animację skoku.
+5. Ostatnie trzy działania uruchamiają stację. Łącznie jedna misja ma 12 działań.
+6. Otrzymaj 1–3 gwiazdki, kryształy i postęp misji. Kolory statku odblokowują się po 1, 3 i 5 ukończonych misjach.
+
+Trzy planety: Flora, Polaris i Sol. Można grać na każdej od początku. Spokojny tryb pomija przeloty i skupia się na bramach.
+
+## Sterowanie
+
+Standardowy pad: gałka/krzyżak – ruch i wybór; A – zatwierdzenie; X – podpowiedź; Start – pauza; B – powrót/pauza. Klawiatura: strzałki lub WASD, Enter/Spacja, H, P, Esc. Menu działa na padzie, klawiaturze i myszce. Dostępny ekran testowania pada z przyciskami i osiami. Gra automatycznie pauzuje po odłączeniu pada, utracie fokusu i ukryciu karty.
+
+## Warstwa wizualna i dźwiękowa
+
+Autorskie ilustracje wygenerowane przez ImageGen: kosmiczne tło i statek z przezroczystością. Animacje, planety, kryształy, asteroidy, robot oraz interfejs rysowane w kodzie. Paleta: nocny granat, mięta, krem i pomarańcz. Czytelne liczby, pełny ekran, responsywny układ, ograniczenie ruchu przy preferencji systemowej. Krótkie autorskie sygnały dźwiękowe generowane przez Web Audio, z wyciszeniem.
+
+## Zapis i publikacja
+
+Postępy zapisują się lokalnie w przeglądarce; gra nie wymaga konta ani backendu. Postępy nie synchronizują się między urządzeniami. Technologia: PixiJS 8, TypeScript i Vite. Automatyczny test, build oraz deployment na GitHub Pages po pushu do main. Repozytorium: maciejkoch/Tabliczka-mnozenia.
