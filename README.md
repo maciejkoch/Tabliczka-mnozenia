@@ -8,12 +8,14 @@ Wyprawa przygotowana dla **Emilii, Jakuba i Piotra**. Wybierz pilota w menu; gra
 
 ## Jak uruchomić
 
-Podłącz komputer do telewizora, podłącz pad, otwórz grę i naciśnij przycisk na padzie. Ikona w prawym górnym rogu włącza pełny ekran. „Podłącz pada” otwiera test kontrolera. W ustawieniach wybierz całą tabliczkę albo zakres 1–5 / 6–10. Tryb „Do 20” miesza dodawanie i odejmowanie, uwzględnia zero i nie generuje wyników ujemnych. Pierwszy przelot trwa 16 sekund, kolejne 12 sekund. Spokojny tryb pomija przeloty.
+Podłącz komputer do telewizora, podłącz pad, otwórz grę i naciśnij przycisk na padzie. Ikona w prawym górnym rogu włącza pełny ekran. „Podłącz pada” otwiera test kontrolera. W ustawieniach wybierz całą tabliczkę albo zakres 1–5 / 6–10. Tryb „Do 20” miesza dodawanie i odejmowanie, uwzględnia zero i nie generuje wyników ujemnych. Pierwszy przelot trwa 16 sekund, kolejne 12 sekund. Spokojny tryb zachowuje wybieranie bram i pomija przeloty, strzelanie oraz bossa.
+
+W przygodzie zadania przeplatają **laser matematyczny** i **portale**. Gałką lub krzyżakiem ustaw cel albo kurs, a przyciskiem **A** strzel do drona z poprawnym wynikiem lub wleć do właściwego portalu. Ostatnie trzy działania wyłączają generatory tarczy **strażnika stacji**. Akcje czekają na decyzję pilota; nie ma limitu czasu na obliczenia. Pauza zatrzymuje także wystrzelony laser i lot przez portal.
 
 | Akcja | Standardowy pad | Klawiatura |
 | --- | --- | --- |
 | Ruch / wybór | Lewa gałka lub krzyżak | Strzałki / WASD |
-| Zatwierdź / pomiń przelot | A (przycisk 0) | Enter / Spacja |
+| Strzel / leć / zatwierdź / pomiń przelot | A (przycisk 0) | Enter / Spacja |
 | Podpowiedź | X (przycisk 2) | H |
 | Pauza | Start (przycisk 9) | P |
 | Wróć / pauza | B (przycisk 1) | Esc |

@@ -5,6 +5,7 @@ import { answerChoices, chooseFact, equation, explanation, factPool, parseProgre
 import { Input, type Command } from './input';
 import { Sound } from './audio';
 import { SpaceScene } from './scene';
+import { encounterFor, type Encounter } from './encounters';
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const art = `${import.meta.env.BASE_URL}art/`;
@@ -60,8 +61,12 @@ let choices: number[] = [];
 let recent: string[] = [];
 let earnedStars = 0;
 let missionSaved = false;
+let answerPending = false;
 let toastClock = 0;
 const questionCount = 12;
+function encounter(): Encounter { return encounterFor(questionIndex, calm); }
+function actionLabel(): string { return encounter() === 'portal' ? 'LEĆ' : encounter() === 'gate' ? 'WYBIERZ' : 'STRZEL'; }
+function targetLabel(): string { return ({ gate: 'BRAMA', laser: 'DRON', portal: 'PORTAL', boss: 'GENERATOR' })[encounter()]; }
 const scene = new SpaceScene();
 const sound = new Sound();
 const input = new Input();
@@ -130,7 +135,7 @@ function startMission(): void {
   sound.unlock();
   sound.play('select');
   view = 'game';
-  questionIndex = 0; firstTryCount = 0; missionCrystals = 0; recent = []; earnedStars = 0; missionSaved = false;
+  questionIndex = 0; firstTryCount = 0; missionCrystals = 0; recent = []; earnedStars = 0; missionSaved = false; answerPending = false;
   phase = 'flight'; phaseTime = 0;
   scene.reset();
   scene.setTheme(planets[planetIndex].hex, planetIndex);
@@ -142,13 +147,18 @@ function startMission(): void {
   (document.activeElement as HTMLElement)?.blur();
 }
 function renderGame(): void {
-  screen.className = 'game-screen';
+  screen.className = `game-screen encounter-${encounter()}${answerPending ? ' answer-pending' : ''}${phase === 'correct' ? ' answer-success' : ''}`;
   const planet = planets[planetIndex];
   const station = questionIndex >= questionCount - 3;
-  screen.innerHTML = `<div class="game-hud"><button class="hud-destination" data-action="pause"><span class="planet-orb tiny ${planet.class}"><i></i></span><span>${station ? 'Stacja ' : 'Kierunek: '}${planet.name}<small>${station ? 'Finał misji · uruchom stację' : `${modeNames[mode]} · zakres ${rangeLabel()}`}</small></span></button><div class="mission-dots" aria-label="${questionIndex} z ${questionCount} działań">${Array.from({ length: questionCount }, (_, i) => `<i class="${i < questionIndex ? 'done' : i === questionIndex ? 'current' : ''} ${i >= 9 ? 'station-dot' : ''}"></i>`).join('')}</div><div class="hud-right"><span class="crystal-count"><span>◆</span><b id="crystal-count">${missionCrystals}</b></span><button class="icon-button pause-button" data-action="pause" aria-label="Pauza">Ⅱ</button></div></div>
+  screen.innerHTML = `<div class="game-hud"><button class="hud-destination" data-action="pause"><span class="planet-orb tiny ${planet.class}"><i></i></span><span>${station ? 'Stacja ' : 'Kierunek: '}${planet.name}<small>${station ? calm ? 'Finał misji · uruchom stację' : 'Finał misji · wyłącz tarczę bossa' : `${modeNames[mode]} · zakres ${rangeLabel()}`}</small></span></button><div class="mission-dots" aria-label="${questionIndex} z ${questionCount} działań">${Array.from({ length: questionCount }, (_, i) => `<i class="${i < questionIndex ? 'done' : i === questionIndex ? 'current' : ''} ${i >= 9 ? 'station-dot' : ''}"></i>`).join('')}</div><div class="hud-right"><span class="crystal-count"><span>◆</span><b id="crystal-count">${missionCrystals}</b></span><button class="icon-button pause-button" data-action="pause" aria-label="Pauza">Ⅱ</button></div></div>
     <div id="game-content">${phase === 'flight' ? flightMarkup() : questionMarkup()}</div>
-    <div class="game-bottom-label"><span>SEKTOR ${planet.number} / ${station ? 'STACJA ORBITALNA' : 'SZLAK ODKRYWCÓW'}</span><span>${phase === 'flight' ? '<kbd>← →</kbd> / gałka — steruj statkiem' : '<kbd>← →</kbd> wybierz bramę · <span class="key-a">A</span> / <kbd>Enter</kbd> zatwierdź'}</span></div>`;
+    <div class="game-bottom-label"><span>SEKTOR ${planet.number} / ${station ? 'STACJA ORBITALNA' : 'SZLAK ODKRYWCÓW'}</span><span>${phase === 'flight' ? '<kbd>← →</kbd> / gałka — steruj statkiem' : `<kbd>← →</kbd> / gałka — ${encounter() === 'portal' ? 'ustaw kurs' : 'ustaw cel'} · <span class="key-a">A</span> / <kbd>Enter</kbd> ${actionLabel().toLowerCase()}`}</span></div>`;
+  syncAnswerTargets();
 }
+function syncAnswerTargets(): void {
+  if (ready && view === 'game' && phase !== 'flight') scene.setAnswerTargets([...screen.querySelectorAll<HTMLElement>('.answer-gate')], selectedAnswer);
+}
+scene.onResize = syncAnswerTargets;
 function flightMarkup(): string {
   return `<section class="flight-info"><div class="eyebrow">${questionIndex === 0 ? `WITAJ NA POKŁADZIE, ${pilot().greeting.toUpperCase()}!` : `ŚWIETNIE, ${pilot().greeting.toUpperCase()}! LECIMY DALEJ`}</div><h2>${questionIndex === 0 ? 'Złap trochę gwiezdnej energii' : 'Zbieraj kryształy po drodze'}</h2><p>Ruszaj gałką lub strzałkami. Omijaj asteroidy — nie tracisz punktów.</p><div class="flight-progress"><i id="flight-fill"></i></div><button class="skip-flight" data-action="skip">Przejdź do działania ${icons.arrow}</button></section>`;
 }
@@ -165,13 +175,18 @@ function hintMarkup(): string {
   return `<div class="hint-card" role="status"><div class="robot-face" aria-hidden="true"><i></i><i></i></div><div class="hint-copy"><strong>${pilot().greeting}, policzmy razem</strong><p>${explanation(fact)}</p><div class="hint-groups" aria-label="Kryształy ułożone w równe grupy">${Array.from({ length: groups }, () => `<span class="hint-group">${Array.from({ length: perGroup }, () => '<i></i>').join('')}</span>`).join('')}</div></div></div>`;
 }
 function questionMarkup(): string {
-  const station = questionIndex >= questionCount - 3;
-  return `<section class="question-area" aria-label="Działanie ${questionIndex + 1}"><div class="eyebrow">${station ? 'URUCHOM STACJĘ · ' : 'OTWÓRZ BRAMĘ · '}DZIAŁANIE ${questionIndex + 1} Z ${questionCount}</div><h2 class="equation" aria-label="${equation(fact)} równa się ile">${equation(fact)} <span>= ?</span></h2><p class="question-prompt" aria-live="polite">${phase === 'correct' ? `Brawo, ${pilot().greeting}! Brama otwarta. Lecimy dalej!` : hintShown ? 'Spokojnie, masz tyle prób, ile potrzebujesz.' : station ? 'Wybierz wynik, żeby zasilić kosmiczną stację.' : 'Która brama ma właściwy wynik?'}</p>${hintShown && phase !== 'correct' ? hintMarkup() : ''}</section>
-    <div class="answer-gates" role="group" aria-label="Wybierz odpowiedź">${choices.map((choice, index) => `<button class="answer-gate ${selectedAnswer === index ? 'selected' : ''} ${incorrect.has(index) ? 'incorrect' : ''} ${phase === 'correct' && choice === fact.answer ? 'correct' : ''}" data-action="answer:${index}" aria-label="Odpowiedź ${choice}" aria-pressed="${selectedAnswer === index}" ${phase === 'correct' || incorrect.has(index) ? 'disabled' : ''}><span class="gate-top">BRAMA 0${index + 1}</span><strong>${choice}</strong><span class="gate-bottom">${phase === 'correct' && choice === fact.answer ? '✦ DOBRA ODPOWIEDŹ' : incorrect.has(index) ? 'SPRÓBUJ INNEJ' : selectedAnswer === index ? 'A / ENTER · WYBIERZ' : 'WYBIERZ BRAMĘ'}</span><i></i></button>`).join('')}</div>
-    ${phase === 'question' && !hintShown ? '<button class="hint-button" data-action="hint"><span class="key-x">X</span> / <kbd>H</kbd> Potrzebuję podpowiedzi</button>' : ''}`;
+  const kind = encounter();
+  const bossHits = Math.max(0, questionIndex - 9) + (phase === 'correct' ? 1 : 0);
+  const success = { gate: 'Brama otwarta. Lecimy dalej!', laser: 'Cel trafiony! Droga wolna.', portal: 'Właściwy portal! Skok gotowy.', boss: bossHits === 3 ? 'Tarcza wyłączona! Stacja uratowana!' : 'Generator wyłączony! Tarcza słabnie.' }[kind];
+  const prompt = { gate: 'Która brama ma właściwy wynik?', laser: 'Wyceluj w drona z dobrym wynikiem. A — strzel!', portal: 'Ustaw statek pod właściwym portalem. A — leć!', boss: 'Traf w dobry wynik, żeby wyłączyć generator tarczy. A — strzel!' }[kind];
+  const heading = { gate: 'OTWÓRZ BRAMĘ', laser: 'LASER MATEMATYCZNY', portal: 'SKOK PRZEZ PORTAL', boss: 'STRAŻNIK STACJI' }[kind];
+  return `<section class="question-area" aria-label="Działanie ${questionIndex + 1}"><div class="eyebrow">${heading} · DZIAŁANIE ${questionIndex + 1} Z ${questionCount}</div><h2 class="equation" aria-label="${equation(fact)} równa się ile">${equation(fact)} <span>= ?</span></h2><p class="question-prompt" aria-live="polite">${answerPending ? kind === 'portal' ? 'Silniki gotowe — lecimy do portalu!' : 'Laser wystrzelony!' : phase === 'correct' ? `Brawo, ${pilot().greeting}! ${success}` : hintShown ? 'Spokojnie, masz tyle prób, ile potrzebujesz.' : prompt}</p>${kind === 'boss' ? `<div class="boss-status ${bossHits === 3 ? 'defeated' : ''}" role="status" aria-label="Wyłączone generatory: ${bossHits} z 3"><div class="boss-robot" aria-hidden="true"><span>◉</span><span>◉</span></div><div><strong>${bossHits === 3 ? 'STACJA URATOWANA' : 'TARCZA STRAŻNIKA'}</strong><div class="boss-shields">${[0, 1, 2].map((i) => `<i class="${i < bossHits ? 'offline' : ''}"></i>`).join('')}<span>${bossHits} / 3</span></div></div></div>` : ''}${hintShown && phase !== 'correct' ? hintMarkup() : ''}</section>
+    ${kind === 'boss' ? `<div class="boss-figure ${bossHits === 3 ? 'defeated' : ''}" aria-hidden="true"><svg viewBox="0 0 260 150" fill="none"><ellipse cx="130" cy="80" rx="120" ry="66" stroke="${bossHits === 3 ? '#9ce6c7' : '#aec7f6'}" stroke-width="3" stroke-dasharray="9 7" opacity="${0.75 - bossHits * 0.2}"/><path d="M80 68 35 88 23 119m157-51 45 20 12 31" stroke="#6c93a5" stroke-width="12" stroke-linecap="round"/><path d="M130 24V8" stroke="#f7b584" stroke-width="5"/><circle cx="130" cy="8" r="5" fill="#9ce6c7"/><rect x="77" y="26" width="106" height="93" rx="26" fill="#304c60" stroke="#f7b584" stroke-width="4"/><rect x="88" y="38" width="84" height="46" rx="16" fill="#102831"/><circle cx="108" cy="59" r="11" fill="#ffe3a4"/><circle cx="152" cy="59" r="11" fill="#ffe3a4"/><path d="M113 101h34" stroke="#9ce6c7" stroke-width="5" stroke-linecap="round"/><path d="m103 123-8 14h70l-8-14" fill="#6c93a5"/><circle cx="23" cy="121" r="10" fill="#f7b584"/><circle cx="237" cy="121" r="10" fill="#f7b584"/></svg></div>` : ''}
+    <div class="answer-gates" role="group" aria-label="${kind === 'portal' ? 'Ustaw kurs na odpowiedź' : 'Wyceluj w odpowiedź'}">${choices.map((choice, index) => `<button class="answer-gate ${selectedAnswer === index ? 'selected' : ''} ${incorrect.has(index) ? 'incorrect' : ''} ${phase === 'correct' && choice === fact.answer ? 'correct' : ''}" data-action="answer:${index}" aria-label="${targetLabel()} z odpowiedzią ${choice}" aria-pressed="${selectedAnswer === index}" ${phase === 'correct' || answerPending || incorrect.has(index) ? 'disabled' : ''}><span class="gate-top">${targetLabel()} 0${index + 1}</span><strong>${choice}</strong><span class="gate-bottom">${phase === 'correct' && choice === fact.answer ? '✦ DOBRA ODPOWIEDŹ' : incorrect.has(index) ? 'SPRÓBUJ INNEJ' : selectedAnswer === index ? `A / ENTER · ${actionLabel()}` : kind === 'portal' ? 'USTAW KURS' : kind === 'gate' ? 'WYBIERZ BRAMĘ' : 'USTAW CELOWNIK'}</span><i></i>${kind === 'laser' || kind === 'boss' ? '<span class="target-reticle" aria-hidden="true"></span>' : ''}</button>`).join('')}</div>
+    ${phase === 'question' && !hintShown ? `<button class="hint-button" data-action="hint" ${answerPending ? 'disabled' : ''}><span class="key-x">X</span> / <kbd>H</kbd> Potrzebuję podpowiedzi</button>` : ''}`;
 }
 function newQuestion(): void {
-  phase = 'question'; phaseTime = 0; selectedAnswer = 1; firstTry = true; hintShown = false; incorrect.clear();
+  phase = 'question'; phaseTime = 0; selectedAnswer = 1; firstTry = true; hintShown = false; incorrect.clear(); answerPending = false;
   fact = chooseFact(factPool(mode, range), progress, recent, progress.missions * questionCount + questionIndex);
   recent.push(fact.id);
   choices = answerChoices(fact);
@@ -179,9 +194,19 @@ function newQuestion(): void {
   renderGame();
 }
 function answer(index: number): void {
-  if (phase !== 'question' || modal || incorrect.has(index)) return;
+  if (phase !== 'question' || modal || answerPending || incorrect.has(index) || choices[index] === undefined) return;
   selectedAnswer = index;
   scene.setTarget(index);
+  if (encounter() === 'gate') { resolveAnswer(index); return; }
+  answerPending = true;
+  renderGame();
+  scene.performAnswer(encounter(), index);
+  sound.play(encounter() === 'portal' ? 'launch' : 'laser');
+  (document.activeElement as HTMLElement)?.blur();
+}
+function resolveAnswer(index: number): void {
+  answerPending = false;
+  if (encounter() !== 'gate') scene.celebrateAnswer(choices[index] === fact.answer);
   if (choices[index] === fact.answer) {
     if (firstTry) firstTryCount++;
     missionCrystals += firstTry ? 5 : 3;
@@ -202,7 +227,7 @@ function answer(index: number): void {
   (document.activeElement as HTMLElement)?.blur();
 }
 function showHint(): void {
-  if (phase !== 'question') return;
+  if (phase !== 'question' || answerPending) return;
   firstTry = false; hintShown = true; sound.play('hint'); renderGame();
 }
 function finishMission(): void {
@@ -224,6 +249,7 @@ function finishMission(): void {
 }
 
 scene.getMovement = () => input.movement;
+scene.onAnswerImpact = resolveAnswer;
 scene.onCrystal = () => { missionCrystals++; sound.play('crystal'); const counter = document.querySelector('#crystal-count'); if (counter) counter.textContent = String(missionCrystals); };
 scene.onBump = () => toast('Mała turbulencja. Lecimy dalej!', 1.5);
 scene.onTick = (seconds) => {
@@ -251,10 +277,10 @@ function openModal(kind: NonNullable<typeof modal>): void {
   modal = kind;
   scene.setPaused(true);
   let content = '';
-  if (kind === 'settings') content = modalTemplate('Wyprawa na Twoich zasadach', 'USTAWIENIA MISJI', `<p>Wybierz zakres i tempo. Na odpowiedź zawsze masz tyle czasu, ile potrzebujesz.</p>${mode === 'arithmetic' ? '<h3>Zakres liczenia</h3><p class="setting-note">Dodawanie i odejmowanie od 0 do 20. Suma nigdy nie przekracza 20, a odejmowanie nie daje wyników ujemnych.</p>' : `<h3>Zakres tabliczki</h3><div class="segmented">${(['easy', 'hard', 'all'] as Range[]).map((entry) => `<button data-action="range:${entry}" aria-pressed="${range === entry}" class="${range === entry ? 'selected' : ''}">${entry === 'all' ? 'Cała · 1–10' : entry === 'easy' ? 'Początek · 1–5' : 'Wyzwanie · 6–10'}</button>`).join('')}</div><p class="setting-note">${range === 'all' ? 'Wszystkie iloczyny do 100 i odwrotne dzielenie bez reszty.' : range === 'easy' ? 'Mnożenie przez 1–5 lub dzielenie przez 1–5. Drugi czynnik i iloraz: 1–10.' : 'Mnożenie przez 6–10 lub dzielenie przez 6–10. Drugi czynnik i iloraz: 1–10.'}</p>`}<h3>Jak lecimy?</h3><div class="segmented"><button data-action="calm:false" class="${!calm ? 'selected' : ''}" aria-pressed="${!calm}">Przygoda z lotem</button><button data-action="calm:true" class="${calm ? 'selected' : ''}" aria-pressed="${calm}">Spokojnie · same bramy</button></div><p class="setting-note">Spokojny tryb pomija asteroidy i zbieranie kryształów między działaniami.</p><button class="launch-button modal-primary" data-action="close">Gotowe ${icons.arrow}</button>`);
+  if (kind === 'settings') content = modalTemplate('Wyprawa na Twoich zasadach', 'USTAWIENIA MISJI', `<p>Wybierz zakres i tempo. Na odpowiedź zawsze masz tyle czasu, ile potrzebujesz.</p>${mode === 'arithmetic' ? '<h3>Zakres liczenia</h3><p class="setting-note">Dodawanie i odejmowanie od 0 do 20. Suma nigdy nie przekracza 20, a odejmowanie nie daje wyników ujemnych.</p>' : `<h3>Zakres tabliczki</h3><div class="segmented">${(['easy', 'hard', 'all'] as Range[]).map((entry) => `<button data-action="range:${entry}" aria-pressed="${range === entry}" class="${range === entry ? 'selected' : ''}">${entry === 'all' ? 'Cała · 1–10' : entry === 'easy' ? 'Początek · 1–5' : 'Wyzwanie · 6–10'}</button>`).join('')}</div><p class="setting-note">${range === 'all' ? 'Wszystkie iloczyny do 100 i odwrotne dzielenie bez reszty.' : range === 'easy' ? 'Mnożenie przez 1–5 lub dzielenie przez 1–5. Drugi czynnik i iloraz: 1–10.' : 'Mnożenie przez 6–10 lub dzielenie przez 6–10. Drugi czynnik i iloraz: 1–10.'}</p>`}<h3>Jak lecimy?</h3><div class="segmented"><button data-action="calm:false" class="${!calm ? 'selected' : ''}" aria-pressed="${!calm}">Przygoda z lotem</button><button data-action="calm:true" class="${calm ? 'selected' : ''}" aria-pressed="${calm}">Spokojnie · same bramy</button></div><p class="setting-note">Spokojny tryb zachowuje wybieranie bram, pomija strzelanie, bossa oraz przeloty między działaniami.</p><button class="launch-button modal-primary" data-action="close">Gotowe ${icons.arrow}</button>`);
   if (kind === 'pause') content = modalTemplate('Mały przystanek w kosmosie', 'PAUZA', '<p>Statek czeka. Możesz odpocząć, a potem wrócić do tej samej misji.</p><div class="stacked-actions"><button class="launch-button" data-action="close"><span class="key-a">A</span> Lecimy dalej →</button><button class="secondary-button" data-action="restart">Zacznij misję od początku</button><button class="text-button" data-action="leave">Wróć do mapy wypraw</button></div><p class="setting-note">Ukończone działania zostały zapamiętane. Nagrody za misję zapisują się po dotarciu na planetę.</p>');
-  if (kind === 'help') content = modalTemplate('Każdy może zostać pilotem', 'INSTRUKCJA POKŁADOWA', `<div class="how-steps"><div><b>01</b><span><strong>Zbieraj kosmiczną energię</strong>Gałką lub strzałkami steruj statkiem. Łap kryształy i omijaj asteroidy.</span></div><div><b>02</b><span><strong>Otwieraj bramy działaniami</strong>Wybierz prawidłowy wynik mnożenia, dzielenia, dodawania albo odejmowania. Zatwierdź przyciskiem A lub Enter.</span></div><div><b>03</b><span><strong>Gdy potrzebujesz, poproś o pomoc</strong>Przycisk X albo H pokaże kryształy w grupach. Możesz próbować do skutku.</span></div><div><b>04</b><span><strong>Uruchom stację i zdobądź nagrody</strong>Ostatnie trzy działania zasilają stację. Za ukończone misje odblokujesz kolory statku.</span></div></div><p class="setting-note">Start / P — pauza · B / Esc — wróć lub pauza. Menu również obsłużysz padem. Nie tracisz nagród za pomyłki.</p><button class="launch-button modal-primary" data-action="close">Rozumiem, lecimy! →</button>`);
-  if (kind === 'pad') content = modalTemplate('Sprawdź swojego pada', 'KONTROLA PRZED STARTEM', '<p>Podłącz kontroler przez USB lub Bluetooth, kliknij stronę i naciśnij dowolny przycisk pada.</p><div id="pad-live"></div><div class="pad-legend"><span><b>Gałka / krzyżak</b>ruch i wybór</span><span><b>A / przycisk 0</b>zatwierdź</span><span><b>X / przycisk 2</b>podpowiedź</span><span><b>Start / przycisk 9</b>pauza</span></div><p class="setting-note">Gra korzysta ze standardowego układu pada. Jeśli tani kontroler działa inaczej, przełącz go w tryb XInput, jeśli ma taką opcję. Klawiatura zawsze jest dostępna.</p><button class="launch-button modal-primary" data-action="close">Gotowe →</button>');
+  if (kind === 'help') content = modalTemplate('Każdy może zostać pilotem', 'INSTRUKCJA POKŁADOWA', `<div class="how-steps"><div><b>01</b><span><strong>Zbieraj kosmiczną energię</strong>Gałką lub strzałkami steruj statkiem. Łap kryształy i omijaj asteroidy.</span></div><div><b>02</b><span><strong>Strzelaj i skacz przez portale</strong>Gałką lub krzyżakiem ustaw cel z dobrym wynikiem. A strzela do drona lub uruchamia lot przez portal. Enter działa tak samo.</span></div><div><b>03</b><span><strong>Gdy potrzebujesz, poproś o pomoc</strong>Przycisk X albo H pokaże kryształy w grupach. Możesz próbować do skutku.</span></div><div><b>04</b><span><strong>Wyłącz tarczę strażnika stacji</strong>Ostatnie trzy poprawne trafienia wyłączają generatory tarczy bossa i ratują stację. Za ukończone misje odblokujesz kolory statku.</span></div></div><p class="setting-note">Start / P — pauza · B / Esc — wróć lub pauza. Menu również obsłużysz padem. Nie tracisz nagród za pomyłki.</p><button class="launch-button modal-primary" data-action="close">Rozumiem, lecimy! →</button>`);
+  if (kind === 'pad') content = modalTemplate('Sprawdź swojego pada', 'KONTROLA PRZED STARTEM', '<p>Podłącz kontroler przez USB lub Bluetooth, kliknij stronę i naciśnij dowolny przycisk pada.</p><div id="pad-live"></div><div class="pad-legend"><span><b>Gałka / krzyżak</b>ruch i wybór</span><span><b>A / przycisk 0</b>strzel / leć / zatwierdź</span><span><b>X / przycisk 2</b>podpowiedź</span><span><b>Start / przycisk 9</b>pauza</span></div><p class="setting-note">Gra korzysta ze standardowego układu pada. Jeśli tani kontroler działa inaczej, przełącz go w tryb XInput, jeśli ma taką opcję. Klawiatura zawsze jest dostępna.</p><button class="launch-button modal-primary" data-action="close">Gotowe →</button>');
   if (kind === 'hangar') {
     const skins = [{ id: 'original', name: 'Odkrywca', class: '', missions: 0 }, { id: 'gold', name: 'Słoneczny', class: 'gold', missions: 1 }, { id: 'ice', name: 'Lodowy', class: 'ice', missions: 3 }, { id: 'rose', name: 'Gwiezdny', class: 'rose', missions: 5 }];
     content = modalTemplate('Twój statek, Twój styl', 'HANGAR PILOTA', `<p>Ukończ misje i odblokuj nowe kolory. Każda ukończona wyprawa się liczy.</p><div class="skin-grid">${skins.map((entry) => `<button class="skin-card ${skin === entry.id ? 'selected' : ''}" data-action="skin:${entry.id}" ${progress.missions < entry.missions ? 'disabled' : ''} aria-pressed="${skin === entry.id}"><img class="${entry.class}" src="${art}ship.png" alt=""/><strong>${entry.name}</strong><small>${progress.missions < entry.missions ? `Odblokuj: ${entry.missions} ${entry.missions === 1 ? 'misja' : entry.missions < 5 ? 'misje' : 'misji'}` : skin === entry.id ? 'Twój statek' : 'Wybierz statek'}</small></button>`).join('')}</div><button class="launch-button modal-primary" data-action="close">Gotowe →</button>`);
@@ -329,7 +355,7 @@ input.onCommand = (command) => {
     return;
   }
   if (phase === 'flight') { if (command === 'confirm') newQuestion(); return; }
-  if (phase !== 'question') return;
+  if (phase !== 'question' || answerPending) return;
   if (command === 'left' || command === 'right') {
     let index = selectedAnswer;
     for (let tries = 0; tries < choices.length; tries++) { index = (index + (command === 'left' ? -1 : 1) + 3) % 3; if (!incorrect.has(index)) break; }
@@ -373,7 +399,7 @@ root.addEventListener('pointermove', (event) => {
       gate.classList.toggle('selected', index === selectedAnswer);
       gate.setAttribute('aria-pressed', String(index === selectedAnswer));
       const caption = gate.querySelector('.gate-bottom');
-      if (caption && !incorrect.has(index)) caption.textContent = index === selectedAnswer ? 'A / ENTER · WYBIERZ' : 'WYBIERZ BRAMĘ';
+      if (caption && !incorrect.has(index)) caption.textContent = index === selectedAnswer ? `A / ENTER · ${actionLabel()}` : encounter() === 'portal' ? 'USTAW KURS' : encounter() === 'gate' ? 'WYBIERZ BRAMĘ' : 'USTAW CELOWNIK';
     });
   }
 });

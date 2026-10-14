@@ -17,3 +17,41 @@
 @media(max-height:760px) and (min-width:1001px){.hero{min-height:260px}.hero-copy{padding-top:8px;padding-bottom:15px}.hero h1{font-size:44px;margin:13px 0 9px}.pilot-picker{margin-top:10px}.hero-badges{margin-top:10px}}
 @media(max-width:760px){.pilot-picker{gap:6px}.pilot-picker>span{width:100%;margin-bottom:3px}.pilot-picker button{font-size:11px}.hero-description{max-width:90%}.hero-visual{top:95px}}
 .mode-symbol{white-space:nowrap}
+
+/* Pad-first encounters: one aim lane per answer, then A to act. */
+.encounter-laser .answer-gate,.encounter-boss .answer-gate{border-radius:30px;background:linear-gradient(150deg,#25495cf0,#152c3ef0);border-color:#729aaf88}
+.encounter-laser .answer-gate:before,.encounter-boss .answer-gate:before{border-radius:23px;border-color:#b3d8ea33}
+.encounter-laser .answer-gate>i,.encounter-boss .answer-gate>i{bottom:-10px;left:35%;right:35%;height:7px;background:#a9dafa;box-shadow:0 0 22px #aec7f699}
+.encounter-laser .answer-gate.selected,.encounter-boss .answer-gate.selected{border-color:var(--orange);box-shadow:0 0 35px #f7b58433}
+.encounter-laser .answer-gate.selected .gate-bottom,.encounter-boss .answer-gate.selected .gate-bottom{color:#ffe3a4}
+.target-reticle{position:absolute;inset:-12px;pointer-events:none;opacity:0;border:2px dashed var(--orange);border-radius:35px}
+.selected .target-reticle{opacity:1}
+.encounter-portal .answer-gate{border-radius:50%;aspect-ratio:1;min-height:0;background:radial-gradient(ellipse,#234464aa 15%,#263760dd 55%,#89b5fa44 75%);border:3px solid #aec7f6;box-shadow:0 0 25px #aec7f633,inset 0 0 30px #aec7f644;display:flex;flex-direction:column;justify-content:center}
+.encounter-portal .answer-gate:before{inset:8px;border:2px dashed #aec7f666;border-radius:50%;animation:portal-orbit 16s linear infinite}
+.encounter-portal .answer-gate>i{display:none}
+.encounter-portal .answer-gate.selected{border-color:var(--mint);box-shadow:0 0 38px #9ce6c744,inset 0 0 35px #9ce6c744}
+.encounter-portal .answer-gate.correct{border-color:#ffe3a4}
+.answer-pending .answer-gate.selected{box-shadow:0 0 50px #ffe3a455}
+.answer-success .answer-gate.correct{animation:target-hit .45s ease-out}
+.encounter-boss .answer-gate{border-color:#f7b58466;background:linear-gradient(150deg,#514a41ee,#263840ee)}
+.boss-status{position:absolute;right:0;top:22px;display:flex;align-items:center;gap:14px;text-align:left;padding:12px 16px;border:1px solid #f7b58455;border-radius:18px;background:#152c3ee8}
+.boss-status strong{font-size:10px;letter-spacing:1px;color:var(--orange)}
+.boss-robot{display:flex;gap:10px;align-items:center;justify-content:center;width:65px;height:58px;border:3px solid #f7b584;border-radius:18px 18px 10px 10px;background:#45556b;box-shadow:0 0 25px #f7b58422;position:relative;color:#ffe3a4;font-size:19px}
+.boss-robot:before{content:'';position:absolute;top:-13px;width:5px;height:11px;background:var(--orange);border-radius:4px}
+.boss-shields{display:flex;align-items:center;gap:6px;margin-top:9px}
+.boss-shields i{width:21px;height:12px;border:1px solid var(--orange);border-radius:4px;background:#f7b584;box-shadow:0 0 10px #f7b58455}
+.boss-shields i.offline{background:#263d45;border-color:#48636a;box-shadow:none}
+.boss-shields span{font-size:11px;font-weight:800;margin-left:3px;color:#c3d6d8}
+.boss-status.defeated{border-color:var(--mint)}
+.boss-status.defeated strong,.boss-status.defeated .boss-robot{color:var(--mint);border-color:var(--mint)}
+.boss-figure{position:absolute;top:27%;left:50%;transform:translateX(-50%);width:clamp(160px,23vw,260px);height:23%;pointer-events:none}
+.boss-figure svg{width:100%;height:100%;filter:drop-shadow(0 0 20px #aec7f633)}
+.boss-figure.defeated svg{filter:drop-shadow(0 0 25px #9ce6c788)}
+#game-content:has(.hint-card) .boss-figure{display:none}
+@keyframes portal-orbit{to{transform:rotate(360deg)}}
+@keyframes target-hit{50%{transform:translateY(-8px) scale(1.06);filter:brightness(1.5)}}
+@media(max-width:1100px){.boss-status{gap:8px;padding:9px;top:15px}.boss-robot{width:42px;height:42px;font-size:13px;gap:4px}.boss-status strong{font-size:8px}.boss-shields i{width:15px;height:10px}}
+@media(max-width:760px){.encounter-portal .answer-gate{padding:12px 3px}.encounter-portal .answer-gate strong{font-size:38px;margin:0}.encounter-portal .gate-bottom{font-size:6px;letter-spacing:0}.boss-status{position:static;display:inline-flex;margin-top:8px;padding:6px 10px}.boss-robot{display:none}.boss-shields{margin-top:4px}.encounter-boss .answer-gates{top:61%}.encounter-boss .hint-card{margin-top:5px}.target-reticle{inset:-5px}}
+@media(max-width:760px){.boss-figure{top:39%;height:19%;width:150px}}
+@media(max-height:760px) and (min-width:850px){.encounter-portal .answer-gates{top:43%}.encounter-portal .answer-gate{max-width:200px}}
+@media(prefers-reduced-motion:reduce){.encounter-portal .answer-gate:before,.answer-success .answer-gate.correct{animation:none}}

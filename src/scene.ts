@@ -1,4 +1,5 @@
 import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { AnswerAction, type Encounter } from './encounters';
 
 type Entity = { graphic: Graphics; x: number; y: number; kind: 'crystal' | 'rock'; spin: number };
 export class SpaceScene {
@@ -21,9 +22,18 @@ export class SpaceScene {
   private resizeObserver!: ResizeObserver;
   private planet = new Graphics();
   private variant = 0;
+  private answerTargets = [300, 640, 980].map((x) => ({ x, y: 340 }));
+  private action = new AnswerAction();
+  private actionKind: Encounter = 'gate';
+  private actionTarget = { x: 640, y: 340 };
+  private actionStart = { x: 640, y: 555 };
+  private effects = new Graphics();
+  private burst: { x: number; y: number; time: number; correct: boolean } | null = null;
+  onAnswerImpact: (index: number) => void = () => {};
   onTick: (seconds: number) => void = () => {};
   onCrystal: () => void = () => {};
   onBump: () => void = () => {};
+  onResize: () => void = () => {};
   getMovement: () => number = () => 0;
   async init(host: HTMLElement): Promise<void> {
     await this.app.init({ backgroundAlpha: 0, antialias: true, preference: 'webgl', resolution: Math.min(devicePixelRatio || 1, 2), autoDensity: true, width: host.clientWidth, height: host.clientHeight });
@@ -51,6 +61,7 @@ export class SpaceScene {
     this.ship.width = 168;
     this.ship.height = 168;
     this.world.addChild(this.ship);
+    this.world.addChild(this.effects);
     const resize = () => {
       const width = host.clientWidth || innerWidth;
       const height = host.clientHeight || innerHeight;
@@ -58,6 +69,7 @@ export class SpaceScene {
       const scale = Math.min(width / 1280, height / 720);
       this.world.scale.set(scale);
       this.world.position.set((width - 1280 * scale) / 2, (height - 720 * scale) / 2);
+      this.onResize();
     };
     this.resizeObserver = new ResizeObserver(resize);
     this.resizeObserver.observe(host);
@@ -65,16 +77,37 @@ export class SpaceScene {
     this.app.ticker.add((ticker) => this.tick(Math.min(ticker.deltaMS / 1000, 0.05)));
   }
   setPhase(phase: 'flight' | 'question' | 'correct' | 'idle'): void {
+    this.action.cancel();
     this.moving = phase === 'flight';
     this.warp = phase === 'correct';
     if (phase !== 'flight') this.clearEntities();
     if (phase === 'flight') this.spawnClock = 0.2;
   }
   setPaused(value: boolean): void { this.paused = value; }
-  setTarget(index: number): void { this.targetX = [300, 640, 980][index] ?? 640; }
+  setTarget(index: number): void { this.targetX = this.answerTargets[index]?.x ?? 640; }
+  setAnswerTargets(elements: HTMLElement[], selected: number): void {
+    const bounds = this.app.canvas.getBoundingClientRect();
+    const scale = this.world.scale.x;
+    this.answerTargets = elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: (rect.left + rect.width / 2 - bounds.left - this.world.x) / scale,
+        y: (rect.top + rect.height / 2 - bounds.top - this.world.y) / scale };
+    });
+    this.setTarget(selected);
+  }
+  performAnswer(kind: Encounter, index: number): boolean {
+    if (!this.action.begin(index, this.reducedMotion ? 0.2 : kind === 'portal' ? 0.85 : 0.55)) return false;
+    this.actionKind = kind;
+    this.actionTarget = { ...this.answerTargets[index] };
+    this.actionStart = { x: this.ship.x, y: this.ship.y };
+    return true;
+  }
+  celebrateAnswer(correct: boolean): void {
+    this.burst = { ...this.actionTarget, time: 0, correct };
+  }
   setTheme(color: number, variant: number): void { this.theme = color; this.variant = variant; this.drawPlanet(); }
   setSkin(color: number): void { if (this.ship) this.ship.tint = color; }
-  reset(): void { this.clearEntities(); this.x = this.targetX = 640; this.elapsed = 0; this.paused = false; }
+  reset(): void { this.clearEntities(); this.action.cancel(); this.burst = null; this.effects.clear(); this.ship.width = this.ship.height = 168; this.x = this.targetX = 640; this.elapsed = 0; this.paused = false; }
   private drawPlanet(): void {
     const color = [0x7ee0c5, 0x9cbbf3, 0xf4b28a][this.variant] ?? this.theme;
     this.planet.clear().circle(1120, 430, 105).fill({ color, alpha: 0.06 }).circle(1120, 430, 87).fill({ color, alpha: 0.14 });
@@ -114,13 +147,50 @@ export class SpaceScene {
       if (this.spawnClock <= 0) { this.spawn(); this.spawnClock = 0.55; }
     } else this.x += (this.targetX - this.x) * Math.min(1, seconds * 9);
     const bob = this.reducedMotion ? 0 : Math.sin(this.elapsed * 2.8) * 5;
-    this.ship.position.set(this.x, 555 + bob);
+    const restingY = this.moving ? 555 : Math.max(555, Math.min(610, (this.answerTargets[1]?.y ?? 340) + 185));
+    this.ship.position.set(this.x, restingY + bob);
+    this.ship.width = this.ship.height = 168;
     this.ship.rotation = this.moving ? this.getMovement() * 0.12 : (this.targetX - this.x) * 0.0002;
     this.shadow.position.set(this.x, 625);
     this.trail.forEach((flame, i) => {
-      flame.position.set(this.x + Math.sin(this.elapsed * 8 + i) * 3, 607 + i * (this.warp ? 17 : 9) + bob);
+      flame.position.set(this.x + Math.sin(this.elapsed * 8 + i) * 3, this.ship.y + 52 + i * (this.warp ? 17 : 9));
       flame.visible = !this.reducedMotion || i < 2;
     });
+    this.effects.clear();
+    if (this.action.active) {
+      const progress = this.action.progress;
+      const target = this.actionTarget;
+      const start = this.actionStart;
+      if (this.actionKind === 'portal') {
+        if (!this.reducedMotion) {
+          const eased = progress * progress * (3 - 2 * progress);
+          this.ship.position.set(start.x + (target.x - start.x) * eased, start.y + (target.y - start.y) * eased);
+          this.ship.width = this.ship.height = 168 * (1 - eased * 0.8);
+          this.trail.forEach((flame) => { flame.visible = false; });
+          this.effects.moveTo(start.x, start.y).lineTo(this.ship.x, this.ship.y).stroke({ color: this.theme, width: 3, alpha: 0.3 });
+        }
+      } else {
+        const x = start.x + (target.x - start.x) * progress;
+        const y = start.y - 65 + (target.y - start.y + 65) * progress;
+        this.effects.circle(x, y, 7).fill(0xffe3a4).circle(x, y, 15).fill({ color: this.theme, alpha: 0.22 });
+        this.effects.moveTo(x, y).lineTo(x - (target.x - start.x) * 0.08, y - (target.y - start.y + 65) * 0.08).stroke({ color: 0x9ce6c7, width: 5 });
+      }
+      const impact = this.action.tick(seconds);
+      if (impact !== null) this.onAnswerImpact(impact);
+    }
+    if (this.burst) {
+      const burst = this.burst;
+      burst.time += seconds;
+      const fade = Math.max(0, 1 - burst.time / 0.65);
+      const color = burst.correct ? 0xffd07a : 0xaec7f6;
+      this.effects.circle(burst.x, burst.y, 20 + burst.time * (this.reducedMotion ? 20 : 110)).stroke({ color, width: 4, alpha: fade });
+      if (burst.correct && !this.reducedMotion) for (let i = 0; i < 10; i++) {
+        const angle = i / 10 * Math.PI * 2;
+        const distance = 25 + burst.time * 150;
+        this.effects.star(burst.x + Math.cos(angle) * distance, burst.y + Math.sin(angle) * distance, 4, 6).fill({ color, alpha: fade });
+      }
+      if (!fade) this.burst = null;
+    }
     this.entities = this.entities.filter((entity) => {
       entity.y += seconds * (entity.kind === 'crystal' ? 170 : 150);
       entity.graphic.position.set(entity.x, entity.y);

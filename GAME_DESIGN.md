@@ -18,12 +18,12 @@ Gra jest spersonalizowana dla Emilii, Jakuba i Piotra. Na ekranie startowym wybi
 
 1. Wybierz rodzaj działań, planetę i zakres.
 2. Pilotuj automatycznie lecący statek. Pierwszy przelot trwa 16 sekund, kolejne 12 sekund. Można ręcznie przejść do działania. Zbieraj kryształy i omijaj asteroidy. Zderzenia powodują jedynie lekkie przesunięcie.
-3. Przy bramie wybierz jeden z trzech wyników i zatwierdź.
-4. Poprawna odpowiedź otwiera bramę i uruchamia animację skoku.
-5. Ostatnie trzy działania uruchamiają stację. Łącznie jedna misja ma 12 działań.
+3. Zadania 1–9 przeplatają strzelanie do dronów z odpowiedziami i lot przez portale. Gałka/krzyżak ustawia jeden z trzech celów, A strzela lub uruchamia lot. Akcja jest blokowana do trafienia/przelotu, więc trzymanie A nie wysyła wielu odpowiedzi.
+4. Wynik sprawdzany jest po dotarciu lasera lub statku do celu. Poprawne trafienie uruchamia efekty i nagrodę, błędne pokazuje podpowiedź oraz pozwala wybrać inny cel. Pauza zatrzymuje animację i sprawdzenie odpowiedzi.
+5. Ostatnie trzy działania wyłączają kolejne generatory tarczy strażnika stacji. Widoczny robot i wskaźnik 0–3 pokazują postęp; trzeci generator uwalnia stację. Łącznie jedna misja ma 12 działań.
 6. Otrzymaj 1–3 gwiazdki, kryształy i postęp misji. Kolory statku odblokowują się po 1, 3 i 5 ukończonych misjach.
 
-Trzy planety: Flora, Polaris i Sol. Można grać na każdej od początku. Spokojny tryb pomija przeloty i skupia się na bramach.
+Trzy planety: Flora, Polaris i Sol. Można grać na każdej od początku. Spokojny tryb pomija przeloty, strzelanie i bossa; zachowuje wybieranie bram. Preferencja ograniczonego ruchu skraca nowe akcje i wyłącza lot statku do portalu oraz obracanie pierścieni.
 
 ## Sterowanie
 

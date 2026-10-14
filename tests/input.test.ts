@@ -32,6 +32,17 @@ test('controller actions fire once per press, analog movement has a deadzone, an
   assert.equal(events.at(-1), 'left');
   pad.axes[0] = 0; pad.buttons[15].pressed = true; tick();
   assert.equal(input.movement, 1);
+  pad.buttons[15].pressed = false;
+  tick();
+  const beforeActions = events.length;
+  pad.buttons[0].pressed = true;
+  pad.buttons[1].pressed = true;
+  pad.buttons[2].pressed = true;
+  pad.buttons[9].pressed = true;
+  tick(); tick(); tick();
+  assert.deepEqual(events.slice(beforeActions), ['confirm', 'back', 'hint', 'pause']);
+  for (const index of [0, 1, 2, 9]) pad.buttons[index].pressed = false;
+  tick();
   pads = []; tick();
   assert.equal(input.movement, 0);
   assert.equal(connections.at(-1), null);
