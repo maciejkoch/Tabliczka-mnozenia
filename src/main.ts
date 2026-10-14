@@ -7,6 +7,8 @@ import { Sound } from './audio';
 import { SpaceScene } from './scene';
 import { encounterFor, type Encounter } from './encounters';
 import { BasketballPhysics, courtMarkup, shotVelocity, LAUNCH } from './basketball';
+import { BasketMatch, RANKING_KEY, matchTime, parseRanking, addMatch, serializeRanking, type MatchRecord } from './basket-match';
+import { nextControl, type Direction } from './navigation';
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const art = `${import.meta.env.BASE_URL}art/`;
@@ -40,6 +42,11 @@ const basketball = new BasketballPhysics();
 let throwAngle = 62;
 let throwPower = 55;
 let basketMessage = '';
+let basketMatch = new BasketMatch();
+let ranking = parseRanking(readStored(RANKING_KEY));
+let lastMatchId: string | null = null;
+let basketMenu = false;
+let controllerNavigation = false;
 let lastMonitorTime = performance.now();
 let lastBounceTime = 0;
 basketball.onBounce = () => { if (performance.now() - lastBounceTime > 90) { sound.play('bounce'); lastBounceTime = performance.now(); } };
@@ -53,7 +60,7 @@ const pilots = [
 let pilotId = readStored('kosmiczna-wyprawa:pilot') ?? 'emilia';
 function pilot(): typeof pilots[number] { return pilots.find((entry) => entry.id === pilotId) ?? pilots[0]; }
 let view: 'home' | 'game' | 'result' = 'home';
-let modal: 'settings' | 'pause' | 'pad' | 'hangar' | 'help' | 'stats' | null = null;
+let modal: 'settings' | 'pause' | 'pad' | 'hangar' | 'help' | 'stats' | 'ranking' | null = null;
 let previousFocus: HTMLElement | null = null;
 let ready = false;
 let failed = false;
@@ -102,8 +109,19 @@ function stars(count: number): string { return [0, 1, 2].map((i) => `<span class
 function unlockedSkin(): number { return progress.missions >= 5 ? 3 : progress.missions >= 3 ? 2 : progress.missions >= 1 ? 1 : 0; }
 function applySkin(): void { scene.setSkin(({ original: 0xffffff, gold: 0xffd07a, ice: 0xb5dcff, rose: 0xffb4da })[skin] ?? 0xffffff); }
 function focusedAction(): string | null { return (document.activeElement as HTMLElement)?.dataset.action ?? null; }
-function focusAction(action: string): void { const button = [...document.querySelectorAll<HTMLButtonElement>('button[data-action]')].find((entry) => entry.dataset.action === action && entry.offsetParent !== null); button?.focus({ preventScroll: true }); }
+function focusButton(button?: HTMLButtonElement | null): void {
+  root.querySelectorAll('.pad-focus').forEach((entry) => entry.classList.remove('pad-focus'));
+  if (!button) return;
+  button.focus({ preventScroll: true });
+  if (controllerNavigation) button.classList.add('pad-focus');
+  button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function focusAction(action: string): void {
+  focusButton([...root.querySelectorAll<HTMLButtonElement>('button[data-action]')].find((entry) => entry.dataset.action === action && !entry.disabled && entry.offsetParent !== null && !entry.closest('[inert]')));
+}
 function renderHome(restore?: string | null): void {
+  restore ??= focusedAction();
+  basketMenu = false;
   view = 'home';
   document.querySelector('.controller-guide')!.innerHTML = '<kbd>← →</kbd> wybierz <span class="key-a">A</span> / <kbd>Enter</kbd> zatwierdź <kbd>B</kbd> / <kbd>Esc</kbd> wróć';
   scene.setPhase('idle');
@@ -126,10 +144,11 @@ function renderHome(restore?: string | null): void {
   <section class="mission-panel" aria-labelledby="mission-title"><div class="section-title"><h2 id="mission-title">${isBasket() ? 'Przygotuj swój mecz' : 'Przygotuj swoją wyprawę'}</h2><button class="text-button" data-action="help">Jak gramy? ${icons.arrow}</button></div>
     <div class="game-style-picker" role="group" aria-label="Rodzaj gry"><button data-action="style:basketball" class="${isBasket() ? 'selected' : ''}" aria-pressed="${isBasket()}">🏀 Matematyczny basket <small>Kąt, siła i celny rzut</small></button><button data-action="style:space" class="${!isBasket() ? 'selected' : ''}" aria-pressed="${!isBasket()}">🚀 Kosmiczna wyprawa <small>Statki, lasery i portale</small></button></div><div class="mission-config"><div class="mode-block"><p class="field-label"><span>01</span> CO DZIŚ ĆWICZYMY?</p><div class="mode-options" role="group" aria-label="Rodzaj działań">${(['multiply', 'divide', 'mixed', 'arithmetic'] as Mode[]).map((entry) => `<button class="mode-card ${mode === entry ? 'selected' : ''}" data-action="mode:${entry}" aria-pressed="${mode === entry}"><span class="mode-symbol">${modeSymbols[entry]}</span><span>${modeNames[entry]}<small>${modeDescriptions[entry]}</small></span><i class="selection-dot"></i></button>`).join('')}</div></div>
     <div class="planet-block"><p class="field-label"><span>02</span> ${isBasket() ? 'WYBIERZ BOISKO' : 'WYBIERZ PLANETĘ'}</p><div class="planet-options" role="group" aria-label="Cel wyprawy">${planets.map((entry, i) => `<button class="planet-card ${planetIndex === i ? 'selected' : ''}" data-action="planet:${i}" aria-pressed="${planetIndex === i}" style="--planet-color:${entry.color}"><span class="planet-orb ${entry.class}"><i></i></span><span>${entry.name}<small>${stars(progress.planets[entry.id] ?? 0)}</small></span></button>`).join('')}</div></div></div>
-    <div class="launch-row"><button class="settings-button" data-action="settings">${icons.settings}<span>Zakres: <strong>${rangeLabel()}</strong><small>${isBasket() ? 'Rzuty bez limitu czasu' : calm ? 'Spokojny lot' : 'Lot z kryształami'}</small></span></button><div class="mission-summary"><span class="mini-dot" style="background:${planet.color}"></span><span>${isBasket() ? 'Policz · ustaw kąt i siłę · rzuć!' : planet.subtitle}<small>12 działań · krótka misja · bez limitu odpowiedzi</small></span></div><button class="launch-button" data-action="start" ${!ready && !isBasket() ? 'disabled' : ''}><span class="key-a">A</span><span>${isBasket() ? 'Zagraj w basket' : failed ? 'Spróbuj ponownie' : ready ? 'Ruszaj w kosmos' : 'Przygotowanie statku…'}</span>${icons.arrow}</button></div>
+    <div class="launch-row"><button class="settings-button" data-action="settings">${icons.settings}<span>Zakres: <strong>${rangeLabel()}</strong><small>${isBasket() ? 'Mecz · 3 minuty' : calm ? 'Spokojny lot' : 'Lot z kryształami'}</small></span></button><div class="mission-summary"><span class="mini-dot" style="background:${planet.color}"></span><span>${isBasket() ? 'Policz · ustaw kąt i siłę · rzuć!' : planet.subtitle}<small>${isBasket() ? '3 minuty · dobry kosz +3 · błędny −1 · pudło 0' : '12 działań · krótka misja · bez limitu odpowiedzi'}</small></span></div><button class="launch-button" data-action="start" ${!ready && !isBasket() ? 'disabled' : ''}><span class="key-a">A</span><span>${isBasket() ? 'Zagraj w basket' : failed ? 'Spróbuj ponownie' : ready ? 'Ruszaj w kosmos' : 'Przygotowanie statku…'}</span>${icons.arrow}</button></div>
   </section>
-  <section class="home-bottom"><button class="progress-chip" data-action="stats"><span class="chip-icon">${icons.star}</span><span>Twoja kosmiczna historia<small>${progress.missions ? `${progress.missions} ukończonych misji · ${progress.crystals} kryształów` : 'Pierwsza przygoda dopiero przed Tobą'}</small></span>${icons.arrow}</button><button class="hangar-link" data-action="hangar"><span class="mini-ship">✦</span> Hangar <small>${unlockedSkin() + 1}/4 statki</small>${icons.arrow}</button></section>`;
+  <section class="home-bottom"><button class="progress-chip" data-action="${isBasket() ? 'ranking' : 'stats'}"><span class="chip-icon">${icons.star}</span><span>${isBasket() ? 'Ranking basketu' : 'Twoja kosmiczna historia'}<small>${isBasket() ? ranking.length ?  `Mecze: ${ranking.length} · rekord ${ranking[0].score} pkt` : 'Rozegraj pierwszy mecz i zapisz wynik' : progress.missions ? `${progress.missions} ukończonych misji · ${progress.crystals} kryształów` : 'Pierwsza przygoda dopiero przed Tobą'}</small></span>${icons.arrow}</button><button class="hangar-link" data-action="hangar"><span class="mini-ship">✦</span> Hangar <small>${unlockedSkin() + 1}/4 statki</small>${icons.arrow}</button></section>`;
   if (restore) focusAction(restore);
+  else if (input.getPad()) { controllerNavigation = true; focusAction('start'); }
 }
 
 async function initialize(): Promise<void> {
@@ -155,6 +174,7 @@ function startMission(): void {
   view = 'game';
   questionIndex = 0; firstTryCount = 0; missionCrystals = 0; recent = []; earnedStars = 0; missionSaved = false; answerPending = false;
   phase = 'flight'; phaseTime = 0;
+  if (isBasket()) { basketMatch = new BasketMatch(); lastMatchId = null; basketMenu = false; }
   if (ready) scene.reset();
   scene.setTheme(planets[planetIndex].hex, planetIndex);
   applySkin();
@@ -165,13 +185,15 @@ function startMission(): void {
   (document.activeElement as HTMLElement)?.blur();
 }
 function renderBasketGame(): void {
-  document.querySelector('.controller-guide')!.innerHTML = '<kbd>↑ ↓</kbd> kąt <kbd>← →</kbd> siła <span class="key-a">A</span> / <kbd>Enter</kbd> rzut <kbd>P</kbd> pauza';
+  const restore = basketMenu ? focusedAction() : null;
+  document.querySelector('.controller-guide')!.innerHTML = '<kbd>↑ ↓</kbd> kąt <kbd>← →</kbd> siła <span class="key-a">A</span> / <kbd>Enter</kbd> rzut <kbd>Y / M</kbd> przyciski <kbd>P</kbd> pauza';
   screen.className = `game-screen basket-game${phase === 'correct' ? ' basket-success' : ''}`;
-  screen.innerHTML = `<div class="game-hud"><button class="hud-destination" data-action="pause"><span class="basket-hud-icon">🏀</span><span>Matematyczny basket<small>${modeNames[mode]} · zakres ${rangeLabel()} · ${pilot().name}</small></span></button><div class="mission-dots" aria-label="${questionIndex} z ${questionCount} działań">${Array.from({ length: questionCount }, (_, i) => `<i class="${i < questionIndex ? 'done' : i === questionIndex ? 'current' : ''}"></i>`).join('')}</div><div class="hud-right"><span class="crystal-count"><span>★</span><b>${missionCrystals}</b></span><button class="icon-button" data-action="pause" aria-label="Pauza">Ⅱ</button></div></div>
-    <section class="basket-question"><div><span class="eyebrow">POLICZ I TRAF · ${questionIndex + 1} / ${questionCount}</span><h2 class="equation">${equation(fact)} <span>= ?</span></h2></div><p id="basket-message" role="status" aria-live="polite">${phase === 'correct' ? `Brawo, ${pilot().greeting}! ${equation(fact)} = ${fact.answer}. Celny kosz!` : basketMessage || 'Który kosz ma dobry wynik? Ustaw swój rzut.'}</p><button class="text-button" data-action="hint" ${answerPending || phase === 'correct' ? 'disabled' : ''}><span class="key-x">X</span> / H · Podpowiedź</button></section>
+  screen.innerHTML = `<div class="game-hud"><button class="hud-destination" data-action="pause"><span class="basket-hud-icon">🏀</span><span>Matematyczny basket<small>${modeNames[mode]} · zakres ${rangeLabel()} · ${pilot().name}</small></span></button><div class="basket-clock" aria-label="Pozostały czas meczu"><span>CZAS MECZU</span><strong id="basket-clock">${matchTime(basketMatch.remaining)}</strong></div><div class="hud-right"><span class="basket-score" aria-label="Punkty"><span>PUNKTY</span><b id="basket-score">${basketMatch.score}</b></span><button class="icon-button" data-action="pause" aria-label="Pauza">Ⅱ</button></div></div>
+    <section class="basket-question"><div><span class="eyebrow">POLICZ I TRAF · DZIAŁANIE ${questionIndex + 1}</span><h2 class="equation">${equation(fact)} <span>= ?</span></h2></div><p id="basket-message" role="status" aria-live="polite">${phase === 'correct' ? `Brawo, ${pilot().greeting}! ${equation(fact)} = ${fact.answer}. Celny kosz! +3 punkty.` : basketMessage || 'Który kosz ma dobry wynik? Ustaw swój rzut.'}</p><button class="text-button" data-action="hint" ${answerPending || phase === 'correct' ? 'disabled' : ''}><span class="key-x">X</span> / H · Podpowiedź</button></section>
     <div class="basket-stage court-${planetIndex}">${courtMarkup(basketball.hoops, choices, pilot().name)}${hintShown && phase !== 'correct' ? `<div class="basket-hint">${hintMarkup()}</div>` : ''}<div class="basket-side-note">WIDOK Z BOKU <span>RZUT Z LEWEJ →</span></div></div>
-    <div class="throw-controls"><div class="throw-control"><label for="throw-angle"><span>KĄT <small>↑ ↓</small></span><output id="angle-value">${Math.round(throwAngle)}°</output></label><div><button data-action="aim:angle:-2" aria-label="Zmniejsz kąt">−</button><input id="throw-angle" type="range" min="25" max="78" step="1" value="${throwAngle}" aria-label="Kąt rzutu"/><button data-action="aim:angle:2" aria-label="Zwiększ kąt">+</button></div></div><div class="throw-control"><label for="throw-power"><span>SIŁA <small>← →</small></span><output id="power-value">${Math.round(throwPower)}%</output></label><div><button data-action="aim:power:-2" aria-label="Zmniejsz siłę">−</button><input id="throw-power" type="range" min="10" max="100" step="1" value="${throwPower}" aria-label="Siła rzutu"/><button data-action="aim:power:2" aria-label="Zwiększ siłę">+</button></div></div><button class="launch-button throw-button" data-action="throw"><span class="key-a">A</span><span id="throw-caption">Rzuć piłkę</span>${icons.arrow}</button><span class="throw-keyboard">Enter / Spacja<br><small>Bez limitu prób</small></span></div>`;
+    <div class="throw-controls"><div class="throw-control"><label for="throw-angle"><span>KĄT <small>↑ ↓</small></span><output id="angle-value">${Math.round(throwAngle)}°</output></label><div><button data-action="aim:angle:-2" aria-label="Zmniejsz kąt">−</button><input id="throw-angle" type="range" min="25" max="78" step="1" value="${throwAngle}" aria-label="Kąt rzutu"/><button data-action="aim:angle:2" aria-label="Zwiększ kąt">+</button></div></div><div class="throw-control"><label for="throw-power"><span>SIŁA <small>← →</small></span><output id="power-value">${Math.round(throwPower)}%</output></label><div><button data-action="aim:power:-2" aria-label="Zmniejsz siłę">−</button><input id="throw-power" type="range" min="10" max="100" step="1" value="${throwPower}" aria-label="Siła rzutu"/><button data-action="aim:power:2" aria-label="Zwiększ siłę">+</button></div></div><button class="launch-button throw-button" data-action="throw"><span class="key-a">A</span><span id="throw-caption">Rzuć piłkę</span>${icons.arrow}</button><span class="throw-keyboard">Enter / Spacja<br><small>+3 / −1 / pudło 0</small></span></div><div class="basket-pad-guide"><span id="basket-control-mode">${basketMenu ? 'PRZYCISKI · krzyżak / gałka wybiera · A zatwierdza · B wraca do rzutu' : 'RZUT · gałka ustawia kąt i siłę · A rzuca · krzyżak wybiera przyciski'}</span><button data-action="basket-menu" aria-pressed="${basketMenu}">Y / M · ${basketMenu ? 'Wróć do rzutu' : 'Wybierz przycisk'}</button></div>`;
   updateBasketVisual();
+  if (restore) focusAction(restore);
 }
 function changeAim(control: string, delta: number): void {
   if (!delta || view !== 'game' || modal || phase !== 'question') return;
@@ -181,7 +203,10 @@ function changeAim(control: string, delta: number): void {
 }
 function shootBasket(): void {
   if (view !== 'game' || modal || phase !== 'question') return;
-  if (!basketball.shoot(throwAngle, throwPower, true)) return;
+  if (basketMatch.finished || !basketball.shoot(throwAngle, throwPower, true)) return;
+  basketMatch.throw();
+  basketMenu = false;
+  root.querySelectorAll('.pad-focus').forEach((entry) => entry.classList.remove('pad-focus'));
   sound.unlock(); sound.play('launch'); answerPending = true;
   basketMessage = 'Piłka w grze…';
   document.querySelector('#basket-message')!.textContent = basketMessage;
@@ -203,10 +228,17 @@ function updateBasketVisual(): void {
   }
   screen.querySelectorAll<HTMLButtonElement>('[data-action^="aim:"], [data-action="throw"]').forEach((button) => button.disabled = phase !== 'question');
   const hintButton = screen.querySelector<HTMLButtonElement>('[data-action="hint"]'); if (hintButton) hintButton.disabled = answerPending || phase !== 'question';
+  const modeGuide = document.querySelector('#basket-control-mode'); if (modeGuide) modeGuide.textContent = basketMenu ? 'PRZYCISKI · krzyżak / gałka wybiera · A zatwierdza · B wraca do rzutu' : 'RZUT · gałka ustawia kąt i siłę · A rzuca · krzyżak wybiera przyciski';
+  const menuButton = screen.querySelector<HTMLButtonElement>('[data-action="basket-menu"]'); if (menuButton) { menuButton.setAttribute('aria-pressed', String(basketMenu)); menuButton.textContent = `Y / M · ${basketMenu ? 'Wróć do rzutu' : 'Wybierz przycisk'}`; }
+  const clock = document.querySelector('#basket-clock'); if (clock) clock.textContent = matchTime(basketMatch.remaining);
+  screen.querySelector('.basket-clock')?.classList.toggle('running-out', basketMatch.remaining <= 30);
+  const score = document.querySelector('#basket-score'); if (score) score.textContent = String(basketMatch.score);
   const caption = document.querySelector('#throw-caption'); if (caption) caption.textContent = phase === 'correct' ? 'Celny kosz!' : basketball.active ? 'Rzuć ponownie' : 'Rzuć piłkę';
 }
 function tickBasket(seconds: number): void {
-  if (phase === 'question') { changeAim('power', input.movement * seconds * 32); changeAim('angle', -input.verticalMovement * seconds * 24); }
+  if (basketMatch.tick(seconds)) { finishMission(); return; }
+  const movementSeconds = Math.min(seconds, 0.05);
+  if (phase === 'question' && !basketMenu) { changeAim('power', input.aimMovement * movementSeconds * 32); changeAim('angle', -input.aimVerticalMovement * movementSeconds * 24); }
   const result = basketball.tick(seconds);
   if (result && phase === 'question') {
     if (result.kind === 'basket') { resolveAnswer(result.index); screen.querySelector(`[data-hoop="${result.index}"]`)?.classList.add(choices[result.index] === fact.answer ? 'scored' : 'wrong-basket'); }
@@ -215,7 +247,7 @@ function tickBasket(seconds: number): void {
   updateBasketVisual();
   if (phase === 'correct') {
     phaseTime += seconds;
-    if (phaseTime >= 2) { questionIndex++; if (questionIndex >= questionCount) finishMission(); else newQuestion(); }
+    if (phaseTime >= 0.8) { questionIndex++; newQuestion(); }
   }
 }
 root.addEventListener('input', (event) => {
@@ -287,11 +319,13 @@ function answer(index: number): void {
   (document.activeElement as HTMLElement)?.blur();
 }
 function resolveAnswer(index: number): void {
+  if (isBasket() && (view !== 'game' || basketMatch.finished)) return;
+  if (isBasket()) basketMatch.basket(choices[index] === fact.answer);
   answerPending = false;
   if (!isBasket() && encounter() !== 'gate') scene.celebrateAnswer(choices[index] === fact.answer);
   if (choices[index] === fact.answer) {
     if (firstTry) firstTryCount++;
-    missionCrystals += firstTry ? 5 : 3;
+    missionCrystals += isBasket() ? 3 : firstTry ? 5 : 3;
     if (storageAvailable) progress = parseProgress(readStored(storageKey));
     updateFact(progress, fact, firstTry, progress.missions * questionCount + questionIndex);
     save();
@@ -301,19 +335,45 @@ function resolveAnswer(index: number): void {
     input.getPad()?.vibrationActuator?.playEffect('dual-rumble', { duration: 140, strongMagnitude: 0.15, weakMagnitude: 0.35 }).catch(() => {});
   } else {
     firstTry = false; hintShown = true; incorrect.add(index);
-    if (isBasket()) basketMessage = `Trafiony kosz, ale ${choices[index]} to inny wynik. Policz i spróbuj ponownie!`;
+    if (isBasket()) basketMessage = `−1 punkt. ${choices[index]} to inny wynik. Policz i spróbuj ponownie!`;
     sound.play('hint');
     selectedAnswer = choices.findIndex((_, i) => !incorrect.has(i));
     scene.setTarget(selectedAnswer);
   }
   renderGame();
-  (document.activeElement as HTMLElement)?.blur();
+  if (!basketMenu) (document.activeElement as HTMLElement)?.blur();
 }
 function showHint(): void {
   if (phase !== 'question' || answerPending) return;
   firstTry = false; hintShown = true; sound.play('hint'); renderGame();
 }
+function rankingMarkup(highlightId: string | null = null): string {
+  if (!ranking.length) return '<p class="ranking-empty">Ranking czeka na pierwszy mecz. Masz 3 minuty na zdobycie punktów!</p>';
+  const rows = ranking.slice(0, 10);
+  const highlight = ranking.findIndex((entry) => entry.id === highlightId);
+  if (highlight >= 10) rows.push(ranking[highlight]);
+  return `<div class="ranking-table-wrap"><table class="ranking-table"><thead><tr><th>Miejsce</th><th>Gracz</th><th>Punkty</th><th>Tryb</th><th>Data</th></tr></thead><tbody>${rows.map((entry) => `<tr class="${entry.id === highlightId ? 'latest-match' : ''}"><td>${ranking.indexOf(entry) + 1}.</td><td>${escape(entry.player)}${entry.id === highlightId ? '<small>Ten mecz</small>' : ''}</td><td><strong>${entry.score}</strong></td><td>${modeNames[entry.mode]}<small>${entry.mode === 'arithmetic' ? '0–20' : entry.range === 'all' ? '1–10' : entry.range === 'easy' ? '1–5' : '6–10'}</small></td><td>${new Date(entry.finishedAt).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function finishBasketMatch(): void {
+  if (view !== 'game') return;
+  view = 'result'; basketMenu = false; basketball.active = false; scene.setPhase('idle');
+  if (!missionSaved) {
+    const record: MatchRecord = { id: crypto.randomUUID(), player: pilot().name, score: basketMatch.score, correct: basketMatch.correct, wrong: basketMatch.wrong, shots: basketMatch.shots, mode, range, finishedAt: new Date().toISOString() };
+    const savedRanking = readStored(RANKING_KEY);
+    ranking = addMatch(savedRanking === null ? ranking : parseRanking(savedRanking), record);
+    lastMatchId = record.id; missionSaved = true;
+    try { localStorage.setItem(RANKING_KEY, serializeRanking(ranking)); } catch { storageAvailable = false; }
+    if (storageAvailable) progress = parseProgress(readStored(storageKey));
+    progress.missions++; progress.crystals += basketMatch.correct * 3; save();
+  }
+  sound.play('win');
+  screen.className = 'result-screen basket-result';
+  const place = ranking.findIndex((entry) => entry.id === lastMatchId) + 1;
+  screen.innerHTML = `<section class="result-card"><span class="eyebrow">KONIEC MECZU · 3:00</span><h1>${pilot().greeting}, czas minął!</h1><div class="final-basket-score">${basketMatch.score}<small>PUNKTÓW</small></div><p>Dobry kosz +3 · błędny kosz −1 · pudło 0</p><div class="result-numbers"><span><strong>${basketMatch.correct}</strong>dobrych koszy</span><span><strong>${basketMatch.wrong}</strong>błędnych koszy</span><span><strong>${basketMatch.missed}</strong>niecelnych rzutów</span></div><div class="result-note">${storageAvailable ? `Wynik zapisany. Twoje miejsce w rankingu: ${place}.` : 'Zapis w przeglądarce jest niedostępny. Wynik pozostaje w rankingu do zamknięcia strony.'}</div><h2>Ranking basketu</h2>${rankingMarkup(lastMatchId)}<div class="result-actions"><button class="secondary-button" data-action="home">Wróć do menu</button><button class="launch-button" data-action="start"><span class="key-a">A</span> Zagraj kolejny mecz ${icons.arrow}</button></div></section>`;
+  focusAction('start');
+}
 function finishMission(): void {
+  if (isBasket()) { finishBasketMatch(); return; }
   view = 'result';
   scene.setPhase('idle');
   basketball.active = false;
@@ -361,6 +421,7 @@ function openModal(kind: NonNullable<typeof modal>): void {
   modal = kind;
   scene.setPaused(true);
   let content = '';
+  if (kind === 'ranking') { const savedRanking = readStored(RANKING_KEY); if (savedRanking !== null) ranking = parseRanking(savedRanking); content = modalTemplate('Ranking basketu', 'NAJLEPSZE MECZE · 3 MINUTY', `<p>Dobry kosz +3, błędny −1, pudło 0. Ranking aktualizuje się po zakończeniu każdego meczu i zapisuje na tym urządzeniu.</p>${rankingMarkup(lastMatchId)}<button class="launch-button modal-primary" data-action="close">Wróć →</button>`); }
   if (kind === 'settings') content = modalTemplate('Wyprawa na Twoich zasadach', 'USTAWIENIA MISJI', `<p>Wybierz zakres i tempo. Na odpowiedź zawsze masz tyle czasu, ile potrzebujesz.</p>${mode === 'arithmetic' ? '<h3>Zakres liczenia</h3><p class="setting-note">Dodawanie i odejmowanie od 0 do 20. Suma nigdy nie przekracza 20, a odejmowanie nie daje wyników ujemnych.</p>' : `<h3>Zakres tabliczki</h3><div class="segmented">${(['easy', 'hard', 'all'] as Range[]).map((entry) => `<button data-action="range:${entry}" aria-pressed="${range === entry}" class="${range === entry ? 'selected' : ''}">${entry === 'all' ? 'Cała · 1–10' : entry === 'easy' ? 'Początek · 1–5' : 'Wyzwanie · 6–10'}</button>`).join('')}</div><p class="setting-note">${range === 'all' ? 'Wszystkie iloczyny do 100 i odwrotne dzielenie bez reszty.' : range === 'easy' ? 'Mnożenie przez 1–5 lub dzielenie przez 1–5. Drugi czynnik i iloraz: 1–10.' : 'Mnożenie przez 6–10 lub dzielenie przez 6–10. Drugi czynnik i iloraz: 1–10.'}</p>`}<h3>Jak lecimy?</h3><div class="segmented"><button data-action="calm:false" class="${!calm ? 'selected' : ''}" aria-pressed="${!calm}">Przygoda z lotem</button><button data-action="calm:true" class="${calm ? 'selected' : ''}" aria-pressed="${calm}">Spokojnie · same bramy</button></div><p class="setting-note">Spokojny tryb zachowuje wybieranie bram, pomija strzelanie, bossa oraz przeloty między działaniami.</p><button class="launch-button modal-primary" data-action="close">Gotowe ${icons.arrow}</button>`);
   if (kind === 'pause') content = modalTemplate('Mały przystanek w kosmosie', 'PAUZA', '<p>Statek czeka. Możesz odpocząć, a potem wrócić do tej samej misji.</p><div class="stacked-actions"><button class="launch-button" data-action="close"><span class="key-a">A</span> Lecimy dalej →</button><button class="secondary-button" data-action="restart">Zacznij misję od początku</button><button class="text-button" data-action="leave">Wróć do mapy wypraw</button></div><p class="setting-note">Ukończone działania zostały zapamiętane. Nagrody za misję zapisują się po dotarciu na planetę.</p>');
   if (kind === 'help') content = modalTemplate('Każdy może zostać pilotem', 'INSTRUKCJA POKŁADOWA', `<div class="how-steps"><div><b>01</b><span><strong>Zbieraj kosmiczną energię</strong>Gałką lub strzałkami steruj statkiem. Łap kryształy i omijaj asteroidy.</span></div><div><b>02</b><span><strong>Strzelaj i skacz przez portale</strong>Gałką lub krzyżakiem ustaw cel z dobrym wynikiem. A strzela do drona lub uruchamia lot przez portal. Enter działa tak samo.</span></div><div><b>03</b><span><strong>Gdy potrzebujesz, poproś o pomoc</strong>Przycisk X albo H pokaże kryształy w grupach. Możesz próbować do skutku.</span></div><div><b>04</b><span><strong>Wyłącz tarczę strażnika stacji</strong>Ostatnie trzy poprawne trafienia wyłączają generatory tarczy bossa i ratują stację. Za ukończone misje odblokujesz kolory statku.</span></div></div><p class="setting-note">Start / P — pauza · B / Esc — wróć lub pauza. Menu również obsłużysz padem. Nie tracisz nagród za pomyłki.</p><button class="launch-button modal-primary" data-action="close">Rozumiem, lecimy! →</button>`);
@@ -375,16 +436,16 @@ function openModal(kind: NonNullable<typeof modal>): void {
     const practice = Object.entries(progress.facts).filter(([, record]) => record.wrong > 0 && record.streak < 3).sort((a, b) => b[1].wrong - a[1].wrong).slice(0, 6);
     content = modalTemplate('Twoja kosmiczna historia', 'DZIENNIK PILOTA', `<div class="stats-grid"><span><strong>${progress.missions}</strong>ukończonych misji</span><span><strong>${progress.crystals}</strong>kryształów</span><span><strong>${practiced}</strong>różnych działań</span><span><strong>${mastered}</strong>opanowanych działań</span></div><h3>Nasze planety</h3><div class="stats-planets">${planets.map((entry) => `<span>${entry.name}<span>${stars(progress.planets[entry.id] ?? 0)}</span></span>`).join('')}</div>${practice.length ? `<h3>Do poćwiczenia podczas kolejnych misji</h3><div class="practice-facts">${practice.map(([id]) => { const [op, a, b] = id.split(':'); return `<span>${a} ${{ m: '×', d: '÷', a: '+', s: '−' }[op] ?? '?'} ${b}</span>`; }).join('')}</div>` : '<p>Robot pomocnik będzie zapamiętywać działania, które warto powtórzyć.</p>'}<p class="setting-note">Opanowane = 3 poprawne odpowiedzi z rzędu bez pomocy. Postępy są zapisane w tej przeglądarce, na tym komputerze.${!storageAvailable ? ' Uwaga: zapis jest obecnie zablokowany przez przeglądarkę.' : ''}</p><button class="launch-button modal-primary" data-action="close">Gotowe →</button>`);
   }
-  if (isBasket() && kind === 'help') content = modalTemplate('Policz. Wyceluj. Traf!', 'MATEMATYCZNY BASKET', `<div class="how-steps"><div><b>01</b><span><strong>Znajdź dobry wynik</strong>Każdy kosz ma inną odpowiedź. Oblicz działanie i wybierz swój cel.</span></div><div><b>02</b><span><strong>Ustaw kąt i siłę</strong>Góra / dół zmienia kąt. Lewo / prawo zmienia siłę. Możesz też użyć suwaków. Kropki pokazują początek toru lotu.</span></div><div><b>03</b><span><strong>Rzuć piłkę</strong>A na padzie lub Enter / Spacja wykonuje rzut. Piłka odbija się od tablic, obręczy i boiska. Kosz liczy się przy wpadnięciu od góry.</span></div><div><b>04</b><span><strong>Próbuj, ile potrzebujesz</strong>Kąt i siłę możesz poprawić od razu, a A / Enter ponawia rzut bez czekania na piłkę. X / H pokaże pomoc w liczeniu. Start / P — pauza.</span></div></div><button class="launch-button modal-primary" data-action="close">Gramy! →</button>`);
+  if (isBasket() && kind === 'help') content = modalTemplate('Policz. Wyceluj. Traf!', 'MATEMATYCZNY BASKET', `<div class="how-steps"><div><b>01</b><span><strong>Znajdź dobry wynik</strong>Każdy kosz ma inną odpowiedź. Oblicz działanie i wybierz swój cel.</span></div><div><b>02</b><span><strong>Ustaw kąt i siłę</strong>Gałka góra / dół zmienia kąt, lewo / prawo zmienia siłę. Krzyżak wybiera przyciski; A je zatwierdza. Y przełącza tryb, B wraca do rzutu. Możesz też użyć suwaków. Kropki pokazują początek toru lotu.</span></div><div><b>03</b><span><strong>Rzuć piłkę</strong>A na padzie lub Enter / Spacja wykonuje rzut. Piłka odbija się od tablic, obręczy i boiska. Kosz liczy się przy wpadnięciu od góry.</span></div><div><b>04</b><span><strong>Próbuj, ile potrzebujesz</strong>Mecz trwa 3 minuty. Dobry kosz daje +3 punkty, błędny −1, pudło 0. Rzut poprawiasz od razu. X / H — pomoc, Start / P — pauza. Wynik zapisuje się w rankingu po meczu.</span></div></div><button class="launch-button modal-primary" data-action="close">Gramy! →</button>`);
   if (isBasket() && kind === 'pause') content = modalTemplate('Przerwa na boisku', 'PAUZA', '<p>Piłka i mecz czekają. Wrócisz dokładnie do tego samego rzutu.</p><div class="stacked-actions"><button class="launch-button" data-action="close"><span class="key-a">A</span> Wracamy na boisko →</button><button class="secondary-button" data-action="restart">Zacznij mecz od początku</button><button class="text-button" data-action="leave">Wróć do menu</button></div>');
-  if (isBasket() && kind === 'settings') content = content.replace(/<h3>Jak lecimy[\s\S]*?<button class="launch-button modal-primary"/, '<p class="setting-note">W baskecie każdy rzut wykonujesz samodzielnie. Nie ma limitu czasu ani liczby prób.</p><button class="launch-button modal-primary"');
+  if (isBasket() && kind === 'settings') content = content.replace(/<h3>Jak lecimy[\s\S]*?<button class="launch-button modal-primary"/, '<p class="setting-note">W baskecie każdy rzut wykonujesz samodzielnie. Mecz trwa 3 minuty. Dobry kosz +3, błędny −1, pudło 0. Pauza zatrzymuje również zegar.</p><button class="launch-button modal-primary"');
   const restore = focusedAction();
   modalRoot.innerHTML = content;
   screen.inert = true;
   document.querySelector<HTMLElement>('.topbar')!.inert = true;
   document.querySelector<HTMLElement>('.footer')!.inert = true;
   if (restore && modalRoot.querySelector(`[data-action="${restore}"]`)) focusAction(restore);
-  else modalRoot.querySelector<HTMLButtonElement>('.modal-primary, .launch-button, button')?.focus({ preventScroll: true });
+  else focusButton(modalRoot.querySelector<HTMLButtonElement>('.modal-primary, .launch-button') ?? modalRoot.querySelector<HTMLButtonElement>('button'));
 }
 function closeModal(): void {
   modal = null; modalRoot.innerHTML = ''; scene.setPaused(false);
@@ -392,7 +453,7 @@ function closeModal(): void {
   document.querySelector<HTMLElement>('.topbar')!.inert = false;
   document.querySelector<HTMLElement>('.footer')!.inert = false;
   if (view === 'home') renderHome();
-  if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+  if (previousFocus instanceof HTMLButtonElement && previousFocus.isConnected && !previousFocus.disabled) focusButton(previousFocus);
   else if (view === 'home' || view === 'result') focusAction('start');
 }
 function updateSoundButton(): void {
@@ -404,29 +465,33 @@ function updateSoundButton(): void {
 function updatePadStatus(pad: Gamepad | null): void {
   document.querySelector('#pad-label')!.textContent = pad ? 'Pad gotowy' : 'Podłącz pada';
   document.querySelector('#pad-dot')!.classList.toggle('connected', !!pad);
+  if (pad && view === 'home' && !modal) { controllerNavigation = true; focusAction('start'); }
   if (!pad && view === 'game' && !modal) { openModal('pause'); toast('Pad został odłączony. Podłącz go lub użyj klawiatury.'); }
 }
 input.onPad = updatePadStatus;
 
-function navigate(command: Command): void {
+function navigate(command: Direction): void {
+  controllerNavigation = true;
   const container = modal ? modalRoot : root;
   const buttons = [...container.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')].filter((button) => button.offsetParent !== null && !button.closest('[inert]'));
-  const current = document.activeElement as HTMLButtonElement;
-  if (!buttons.includes(current)) { (modal ? modalRoot.querySelector<HTMLButtonElement>('.launch-button') : screen.querySelector<HTMLButtonElement>('[data-action="start"]'))?.focus({ preventScroll: true }); return; }
-  const origin = current.getBoundingClientRect();
-  const x = origin.x + origin.width / 2, y = origin.y + origin.height / 2;
-  const horizontal = command === 'left' || command === 'right';
-  const direction = command === 'left' || command === 'up' ? -1 : 1;
-  const candidates = buttons.filter((button) => button !== current).map((button) => {
-    const rect = button.getBoundingClientRect();
-    const dx = rect.x + rect.width / 2 - x, dy = rect.y + rect.height / 2 - y;
-    return { button, primary: (horizontal ? dx : dy) * direction, cross: Math.abs(horizontal ? dy : dx) };
-  }).filter((candidate) => candidate.primary > 5).sort((a, b) => (a.primary + a.cross * 2.4) - (b.primary + b.cross * 2.4));
-  candidates[0]?.button.focus({ preventScroll: true });
-  if (candidates.length) sound.play('select');
+  const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  if (current < 0) { focusButton(buttons.find((button) => button.dataset.action === (modal ? 'close' : view === 'game' ? 'throw' : 'start')) ?? buttons[0]); return; }
+  const next = nextControl(buttons.map((button) => button.getBoundingClientRect()), current, command);
+  focusButton(buttons[next]); sound.play('select');
 }
-input.onCommand = (command) => {
+function toggleBasketMenu(): void {
+  if (!isBasket() || view !== 'game' || modal) return;
+  basketMenu = !basketMenu;
+  if (basketMenu) { controllerNavigation = true; focusAction('throw'); }
+  else { root.querySelectorAll('.pad-focus').forEach((entry) => entry.classList.remove('pad-focus')); (document.activeElement as HTMLElement)?.blur(); }
+  updateBasketVisual();
+}
+input.onCommand = (command, source) => {
   sound.unlock();
+  if (source !== 'keyboard') controllerNavigation = true;
+  const direction = ['left', 'right', 'up', 'down'].includes(command);
+  if (command === 'menu') { if (isBasket() && view === 'game' && !modal) toggleBasketMenu(); else navigate('right'); return; }
+  if (command === 'back' && basketMenu && !modal && view === 'game') { toggleBasketMenu(); return; }
   if (command === 'back' || command === 'pause') {
     if (modal) closeModal();
     else if (view === 'game') openModal('pause');
@@ -438,11 +503,17 @@ input.onCommand = (command) => {
       const active = document.activeElement;
       if (active instanceof HTMLButtonElement && active.offsetParent !== null && !active.closest('[inert]')) active.click();
       else if (view === 'home' || view === 'result') startMission();
-    } else if (['left', 'right', 'up', 'down'].includes(command)) navigate(command);
+    } else if (['left', 'right', 'up', 'down'].includes(command)) navigate(command as Direction);
     return;
   }
   if (isBasket()) {
-    if (command === 'confirm') shootBasket();
+    if (direction && (basketMenu || source === 'pad-button')) { basketMenu = true; navigate(command as Direction); updateBasketVisual(); }
+    else if (command === 'confirm' && basketMenu) {
+      const active = document.activeElement;
+      if (active instanceof HTMLButtonElement && !active.disabled && !active.closest('[inert]')) active.click();
+      else focusAction('throw');
+    }
+    else if (command === 'confirm') shootBasket();
     else if (command === 'hint' && !basketball.active) showHint();
     return;
   }
@@ -462,6 +533,7 @@ root.addEventListener('click', async (event) => {
   const action = button.dataset.action!;
   sound.unlock();
   if (action.startsWith('style:')) { gameStyle = action.endsWith('space') ? 'space' : 'basketball'; storeOption('matematyczny-basket:style', gameStyle); renderHome(action); }
+  else if (action === 'basket-menu') toggleBasketMenu();
   else if (action === 'throw') shootBasket();
   else if (action.startsWith('aim:')) { const [, control, delta] = action.split(':'); changeAim(control, Number(delta)); }
   else if (action.startsWith('mode:')) { mode = action.split(':')[1] as Mode; sound.play('select'); renderHome(action); }
@@ -478,12 +550,17 @@ root.addEventListener('click', async (event) => {
   else if (action === 'restart') { closeModal(); startMission(); }
   else if (action === 'leave') { closeModal(); renderHome('start'); }
   else if (action === 'home') { if (view === 'game') openModal('pause'); else renderHome('start'); }
-  else if (['settings', 'pause', 'pad', 'hangar', 'help', 'stats'].includes(action)) openModal(action as NonNullable<typeof modal>);
+  else if (['settings', 'pause', 'pad', 'hangar', 'help', 'stats', 'ranking'].includes(action)) openModal(action as NonNullable<typeof modal>);
   else if (action === 'sound') { sound.enabled = !sound.enabled; storeOption('kosmiczna-wyprawa:sound', sound.enabled ? 'on' : 'off'); updateSoundButton(); if (sound.enabled) sound.play('select'); }
   else if (action === 'fullscreen') {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
     catch { toast('Pełny ekran można też włączyć klawiszem F11 lub w menu przeglądarki.'); }
   }
+});
+root.addEventListener('focusin', (event) => {
+  const button = event.target;
+  root.querySelectorAll('.pad-focus').forEach((entry) => entry.classList.remove('pad-focus'));
+  if (controllerNavigation && button instanceof HTMLButtonElement) button.classList.add('pad-focus');
 });
 root.addEventListener('pointermove', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-action^="answer:"]');
@@ -509,7 +586,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && vie
 window.addEventListener('blur', () => { if (view === 'game' && !modal) openModal('pause'); });
 function monitor(): void {
   const now = performance.now();
-  const seconds = Math.min((now - lastMonitorTime) / 1000, 0.05);
+  const seconds = Math.max(0, (now - lastMonitorTime) / 1000);
   lastMonitorTime = now;
   if (isBasket() && view === 'game' && !modal) tickBasket(seconds);
   if (toastClock && performance.now() > toastClock) { document.querySelector('#toast')!.textContent = ''; toastClock = 0; }

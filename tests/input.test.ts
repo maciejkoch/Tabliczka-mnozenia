@@ -4,6 +4,7 @@ import { Input, type Command } from '../src/input.ts';
 
 test('controller actions fire once per press, analog movement has a deadzone, and disconnect resets movement', () => {
   const events: Command[] = [];
+  const sources: string[] = [];
   const connections: (Gamepad | null)[] = [];
   const frames: FrameRequestCallback[] = [];
   const handlers: Record<string, (event: any) => void> = {};
@@ -14,7 +15,7 @@ test('controller actions fire once per press, analog movement has a deadzone, an
   Object.defineProperty(globalThis, 'requestAnimationFrame', { value: (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; }, configurable: true });
   Object.defineProperty(globalThis, 'cancelAnimationFrame', { value: () => {}, configurable: true });
   const input = new Input();
-  input.onCommand = (command) => events.push(command);
+  input.onCommand = (command, source) => { events.push(command); sources.push(source); };
   input.onPad = (value) => connections.push(value);
   const tick = () => frames.shift()!(0);
   pads = [pad]; tick();
@@ -30,8 +31,12 @@ test('controller actions fire once per press, analog movement has a deadzone, an
   pad.axes[0] = -0.8; tick();
   assert.equal(input.movement, -0.8);
   assert.equal(events.at(-1), 'left');
+  assert.equal(sources.at(-1), 'pad-stick');
+  assert.equal(input.aimMovement, -0.8);
   pad.axes[0] = 0; pad.buttons[15].pressed = true; tick();
   assert.equal(input.movement, 1);
+  assert.equal(input.aimMovement, 0);
+  assert.equal(sources.at(-1), 'pad-button');
   pad.buttons[15].pressed = false;
   tick();
   const beforeActions = events.length;
@@ -43,8 +48,16 @@ test('controller actions fire once per press, analog movement has a deadzone, an
   assert.deepEqual(events.slice(beforeActions), ['confirm', 'back', 'hint', 'pause']);
   for (const index of [0, 1, 2, 9]) pad.buttons[index].pressed = false;
   tick();
+  pad.buttons[3].pressed = true; tick();
+  assert.equal(events.at(-1), 'menu');
+  assert.equal(sources.at(-1), 'pad-button');
+  pad.buttons[3].pressed = false; pad.axes[1] = -0.8; tick();
+  assert.equal(input.aimVerticalMovement, -0.8);
+  assert.equal(sources.at(-1), 'pad-stick');
   pads = []; tick();
   assert.equal(input.movement, 0);
   assert.equal(connections.at(-1), null);
+  assert.equal(input.aimMovement, 0);
+  assert.equal(input.aimVerticalMovement, 0);
   input.dispose();
 });

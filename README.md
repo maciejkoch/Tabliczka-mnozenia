@@ -8,15 +8,26 @@ Wyprawa przygotowana dla **Emilii, Jakuba i Piotra**. Wybierz pilota w menu; gra
 
 ## Matematyczny basket
 
-Nowy domyślny tryb: widok boiska z boku, zawodnik po lewej i trzy kosze z odpowiedziami na różnych wysokościach i odległościach. Oblicz działanie, ustaw kąt i siłę, a potem rzuć do właściwego kosza. W menu możesz wrócić do kosmicznej wyprawy.
+Widok boiska z boku: zawodnik po lewej i trzy kosze z odpowiedziami na różnych wysokościach i odległościach. Oblicz działanie, ustaw kąt i siłę, a potem rzuć do właściwego kosza. W menu możesz wrócić do kosmicznej wyprawy.
 
-- Góra / dół (lub W / S, gałka i krzyżak): kąt 25–78°.
-- Lewo / prawo (lub A / D, gałka i krzyżak): siła 10–100%.
-- A na padzie, Enter / Spacja albo przycisk „Rzuć piłkę”: rzut.
-- Suwaki oraz przyciski + / − działają myszką i dotykiem.
-- X / H: podpowiedź. Start / P, B / Esc: pauza.
+Mecz trwa **3 minuty aktywnej gry**. Każdy kosz z poprawnym wynikiem daje **+3 punkty**, każdy kosz z błędnym wynikiem **−1 punkt**, a pudło **0**. Wynik może być ujemny. Podpowiedź nie obniża punktów za poprawny kosz. Po dobrym koszu pojawia się kolejne działanie; liczba działań nie jest ograniczona. Pauza zatrzymuje zegar i fizykę. Po sygnale końca nie nalicza się kolejnych trafień.
 
-Fizyka Matter.js symuluje grawitację, obrót, tarcie i odbicia od obręczy, tablic oraz podłoża. Kosz liczy się po przejściu piłki od góry przez obręcz. Każdy z dziewięciu koszy w trzech układach ma osiągalny rzut, sprawdzany testami. Kąt i siłę można zmieniać już podczas lotu, a A / Enter lub „Rzuć ponownie” natychmiast zastępuje piłkę nowym rzutem; pomyłka w celowaniu nie wpływa na ocenę umiejętności liczenia. Trafienie do kosza z błędnym wynikiem pokazuje podpowiedź. Pauza zatrzymuje fizykę. Mecz obejmuje 12 działań, a postępy są wspólne z kosmicznym trybem.
+| Akcja | Pad | Klawiatura / mysz |
+| --- | --- | --- |
+| Kąt i siła rzutu | Lewa gałka | Strzałki / WASD, suwaki, + / − |
+| Rzut / natychmiastowe ponowienie | A w trybie rzutu | Enter / Spacja, „Rzuć piłkę” |
+| Wybór przycisków | Krzyżak; także gałka w trybie przycisków | Strzałki w menu, Tab |
+| Przełącz rzut / przyciski | Y | M lub przycisk Y / M |
+| Zatwierdź wybrany przycisk | A w trybie przycisków | Enter / Spacja |
+| Wróć do rzutu / zamknij okno | B | Esc |
+| Podpowiedź | X | H |
+| Pauza | Start | P |
+
+Przyciski wybierane padem mają wyraźną ramkę. Nawigacja przewija do wybranego elementu i zawija na brzegach menu. Krzyżak w trakcie meczu włącza wybieranie przycisków; B wraca do celowania gałką. Menu główne, ustawienia, pauza, ranking i ekran wyniku działają bez myszy.
+
+Fizyka Matter.js symuluje grawitację, obrót, tarcie i odbicia od obręczy, tablic oraz podłoża. Kosz liczy się po przejściu piłki od góry przez obręcz. Każdy kosz jest osiągalny dostępnym kątem 25–78° i siłą 10–100%. Nowy rzut natychmiast zastępuje poprzednią piłkę.
+
+**Ranking** aktualizuje się po każdym ukończonym meczu i zapisuje w localStorage pod kluczem `matematyczny-basket:ranking:v1`. Zachowuje wszystkie ukończone mecze, nazwę gracza, punkty, kosze, liczbę rzutów, tryb, zakres i datę. Pokazuje 10 najlepszych wyników oraz bieżący wynik, jeśli zajmuje dalsze miejsce. Sortowanie: punkty malejąco, dobre kosze malejąco, błędne kosze rosnąco, data. Ranking jest dostępny z menu oraz na ekranie końca meczu. Przerwany lub zrestartowany mecz nie dodaje wpisu. Ranking jest lokalny dla danego urządzenia i adresu strony.
 
 ## Jak uruchomić
 
