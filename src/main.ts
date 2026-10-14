@@ -345,7 +345,7 @@ root.addEventListener('click', async (event) => {
     catch { toast('Pełny ekran można też włączyć klawiszem F11 lub w menu przeglądarki.'); }
   }
 });
-root.addEventListener('pointerover', (event) => {
+root.addEventListener('pointermove', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-action^="answer:"]');
   if (button && phase === 'question' && !button.disabled) {
     selectedAnswer = Number(button.dataset.action!.split(':')[1]);
